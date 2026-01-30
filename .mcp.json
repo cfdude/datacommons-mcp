@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "datacommons": {
+      "command": "uv",
+      "args": ["run", "datacommons-mcp", "serve", "stdio"],
+      "cwd": "/Users/robsherman/Servers/datacommons-mcp",
+      "env": {
+        "DC_API_KEY": "EY3NfOeSPO2217S09CRC3cA2WNIkPwAcILUVRQGRTeb3gNfg",
+        "DC_STORAGE_DIR": "/Users/robsherman/Servers/datacommons-mcp/datacommons-data"
+      }
+    }
+  }
+}

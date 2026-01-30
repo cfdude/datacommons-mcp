@@ -1,0 +1,73 @@
+{
+  "manifest_version": "0.2",
+  "name": "datacommons-mcp",
+  "version": "1.2.1",
+  "description": "Access the Data Commons Knowledge Graph with automatic large dataset handling, CSV export, and data lineage tracking.",
+  "author": {
+    "name": "DataCommons",
+    "url": "https://github.com/datacommonsorg/agent-toolkit"
+  },
+  "homepage": "https://github.com/datacommonsorg/agent-toolkit",
+  "documentation": "https://github.com/datacommonsorg/agent-toolkit/blob/main/packages/datacommons-mcp/README.md",
+  "support": "https://github.com/datacommonsorg/agent-toolkit/issues",
+  "server": {
+    "type": "python",
+    "entry_point": "datacommons_mcp/run_server.py",
+    "mcp_config": {
+      "command": "python",
+      "args": [
+        "${__dirname}/datacommons_mcp/run_server.py"
+      ],
+      "env": {
+        "DC_API_KEY": "${user_config.api_key}",
+        "DC_STORAGE_DIR": "${user_config.storage_dir}",
+        "DC_SCREEN_ROW_THRESHOLD": "${user_config.screen_row_threshold}"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "get_observations",
+      "description": "Get statistical observations from Data Commons. Supports automatic CSV export for large datasets (>500 rows) with data lineage headers."
+    },
+    {
+      "name": "search_indicators",
+      "description": "Search for statistical indicators, topics, and variables in the Data Commons Knowledge Graph."
+    }
+  ],
+  "user_config": {
+    "api_key": {
+      "type": "string",
+      "title": "DataCommons API Key",
+      "description": "API key for accessing Data Commons. Get yours at https://apikeys.datacommons.org/",
+      "required": true,
+      "sensitive": true
+    },
+    "storage_dir": {
+      "type": "string",
+      "title": "Storage Directory",
+      "description": "Directory for storing exported CSV files. Defaults to ~/Documents/datacommons-data if not specified.",
+      "required": false,
+      "default": ""
+    },
+    "screen_row_threshold": {
+      "type": "string",
+      "title": "Screen Row Threshold",
+      "description": "Maximum rows to return directly. Larger responses are automatically exported to CSV. Default: 500",
+      "required": false,
+      "default": "500"
+    }
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/datacommonsorg/agent-toolkit"
+  },
+  "keywords": [
+    "data-commons",
+    "statistics",
+    "public-data",
+    "knowledge-graph",
+    "mcp"
+  ]
+}
