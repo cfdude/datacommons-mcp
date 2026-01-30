@@ -1,0 +1,65 @@
+# .github/workflows/secure-evals.yaml
+name: Run Agent Evals
+
+on:
+  # This workflow ONLY runs on pull_request_target for security.
+  # It runs the workflow defined in the 'main' branch, not the one from the PR.
+  pull_request_target:
+    branches:
+      - main
+
+  # Allows maintainers to manually re-run evals on a specific PR number.
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "PR number to run tests for"
+        required: true
+
+jobs:
+  agent-evals:
+    runs-on: ubuntu-latest
+    environment: evals-and-secrets
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: Get PR's HEAD SHA for manual run
+        if: github.event_name == 'workflow_dispatch'
+        id: get_pr_sha
+        run: |
+          PR_SHA=$(gh pr view ${{ github.event.inputs.pr }} --json headRefOid -q '.headRefOid')
+          echo "sha=$PR_SHA" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check for changed test paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            run_evals:
+              - 'datacommons_mcp/**'
+              - 'evals/**'
+
+      - name: Checkout PR code
+        uses: actions/checkout@v4
+        with:
+          # This explicitly checks out the head commit of the PR
+          ref: ${{ github.event_name == 'workflow_dispatch' && steps.get_pr_sha.outputs.sha || github.event.pull_request.head.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Run agent evals with pytest
+        # Run evals if code in the datacommons-mcp package or evals directory changed
+        if: steps.filter.outputs.run_evals == 'true'
+        run: uv run --extra test pytest -k "eval"
+        env:
+          DC_API_KEY: ${{ secrets.DC_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
