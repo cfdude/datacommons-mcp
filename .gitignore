@@ -192,6 +192,9 @@ Thumbs.db
 gemini.md
 /.gemini/
 
+# Claude Code
+.claude/
+
 # JetBrains
 /.idea
 
