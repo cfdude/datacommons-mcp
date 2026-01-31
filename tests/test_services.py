@@ -15,6 +15,7 @@
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+
 from datacommons_mcp.clients import DCClient
 from datacommons_mcp.data_models.observations import (
     ObservationApiResponse,
@@ -50,15 +51,13 @@ class TestGetObservations:
 
     async def test_input_validation_errors(self, mock_client):
         # Missing variable
-        with pytest.raises(ValueError, match="'variable_dcid' must be specified."):
+        with pytest.raises(ValueError, match=r"'variable_dcid' must be specified."):
             await _validate_and_build_request(
                 client=mock_client, variable_dcid="", place_name="USA"
             )
 
         # Missing place
-        with pytest.raises(
-            ValueError, match="Specify either 'place_name' or 'place_dcid'"
-        ):
+        with pytest.raises(ValueError, match="Specify either 'place_name' or 'place_dcid'"):
             await _validate_and_build_request(client=mock_client, variable_dcid="var1")
 
     async def test_input_validation_date_validation(self, mock_client):
@@ -424,10 +423,7 @@ class TestGetObservations:
         assert obs.time_series[0] == ("2022", 30)
         # Verify the correct API call was made
         mock_client.fetch_obs.assert_called_once()
-        assert (
-            mock_client.fetch_obs.call_args[0][0].date_type
-            == ObservationDateType.LATEST
-        )
+        assert mock_client.fetch_obs.call_args[0][0].date_type == ObservationDateType.LATEST
 
     async def test_source_selection_primary_source_selection(self, mock_client):
         """Tests that the source with data for the most places is chosen as primary."""
@@ -501,9 +497,7 @@ class TestGetObservations:
         assert alt_source.source_id == "source2"
         assert alt_source.places_found_count == 1
 
-    async def test_source_selection_single_place_with_alternative_source(
-        self, mock_client
-    ):
+    async def test_source_selection_single_place_with_alternative_source(self, mock_client):
         """
         Tests that for a single place response, alternative sources have
         places_found_count set to None.
@@ -545,9 +539,7 @@ class TestGetObservations:
         mock_client.fetch_entity_types.return_value = {"country/USA": ["Country"]}
 
         # Act
-        result = await get_observations(
-            client=mock_client, variable_dcid="var1", place_name="USA"
-        )
+        result = await get_observations(client=mock_client, variable_dcid="var1", place_name="USA")
 
         # Assert
         assert len(result.alternative_sources) == 1
@@ -660,9 +652,7 @@ class TestGetObservations:
         }
 
         # Act
-        result = await get_observations(
-            client=mock_client, variable_dcid="var1", place_dcid="any"
-        )
+        result = await get_observations(client=mock_client, variable_dcid="var1", place_dcid="any")
 
         # Assert
         assert result.source_metadata.source_id == "source2"
@@ -724,9 +714,7 @@ class TestGetObservations:
         }
 
         # Act
-        result = await get_observations(
-            client=mock_client, variable_dcid="var1", place_dcid="any"
-        )
+        result = await get_observations(client=mock_client, variable_dcid="var1", place_dcid="any")
 
         # Assert
         # Both have same avg rank (0.5), but source2 is alphabetically greater, so max() chooses it.
@@ -867,9 +855,7 @@ class TestSearchIndicators:
             }
         )
 
-        result = await search_indicators(
-            client=mock_client, query="trade", places=["France"]
-        )
+        result = await search_indicators(client=mock_client, query="trade", places=["France"])
 
         # Should have both topics and variables in expected order
         expected_topic_dcids = ["topic/trade"]
@@ -905,9 +891,7 @@ class TestSearchIndicators:
         mock_client.fetch_entity_infos = AsyncMock(
             return_value={
                 "topic/health": NodeInfo(name="Health", typeOf=["Topic"]),
-                "Count_Person": NodeInfo(
-                    name="Population", typeOf=["StatisticalVariable"]
-                ),
+                "Count_Person": NodeInfo(name="Population", typeOf=["StatisticalVariable"]),
             }
         )
 
@@ -925,28 +909,18 @@ class TestSearchIndicators:
         mock_client.use_search_indicators_endpoint = False
 
         # Test invalid per_search_limit values
-        with pytest.raises(
-            ValueError, match="per_search_limit must be between 1 and 100"
-        ):
-            await search_indicators(
-                client=mock_client, query="health", per_search_limit=0
-            )
+        with pytest.raises(ValueError, match="per_search_limit must be between 1 and 100"):
+            await search_indicators(client=mock_client, query="health", per_search_limit=0)
 
-        with pytest.raises(
-            ValueError, match="per_search_limit must be between 1 and 100"
-        ):
-            await search_indicators(
-                client=mock_client, query="health", per_search_limit=101
-            )
+        with pytest.raises(ValueError, match="per_search_limit must be between 1 and 100"):
+            await search_indicators(client=mock_client, query="health", per_search_limit=101)
 
         # Test valid per_search_limit values
         mock_client.fetch_indicators = AsyncMock(return_value={})
 
         # Should not raise for valid values
         await search_indicators(client=mock_client, query="health", per_search_limit=1)
-        await search_indicators(
-            client=mock_client, query="health", per_search_limit=100
-        )
+        await search_indicators(client=mock_client, query="health", per_search_limit=100)
 
     @pytest.mark.asyncio
     async def test_search_indicators_exclude_topics(self):
@@ -961,12 +935,8 @@ class TestSearchIndicators:
         )
         mock_client.fetch_entity_infos = AsyncMock(
             return_value={
-                "Count_Person": NodeInfo(
-                    name="Population", typeOf=["StatisticalVariable"]
-                ),
-                "Count_Household": NodeInfo(
-                    name="Households", typeOf=["StatisticalVariable"]
-                ),
+                "Count_Person": NodeInfo(name="Population", typeOf=["StatisticalVariable"]),
+                "Count_Household": NodeInfo(name="Households", typeOf=["StatisticalVariable"]),
                 "country/USA": NodeInfo(name="USA", typeOf=["Country"]),
             }
         )
@@ -990,9 +960,7 @@ class TestSearchIndicators:
         )
         mock_client.fetch_indicators = AsyncMock(
             side_effect=[
-                {
-                    "variables": [{"dcid": "TradeExports_FRA"}]
-                },  # Base query with both places
+                {"variables": [{"dcid": "TradeExports_FRA"}]},  # Base query with both places
                 {
                     "variables": [
                         {"dcid": "TradeExports_DEU"},
@@ -1038,9 +1006,7 @@ class TestSearchIndicators:
         mock_client.use_search_indicators_endpoint = False
 
         # Test invalid per_search_limit values
-        with pytest.raises(
-            ValueError, match="per_search_limit must be between 1 and 100"
-        ):
+        with pytest.raises(ValueError, match="per_search_limit must be between 1 and 100"):
             await search_indicators(
                 client=mock_client,
                 query="health",
@@ -1048,9 +1014,7 @@ class TestSearchIndicators:
                 per_search_limit=0,
             )
 
-        with pytest.raises(
-            ValueError, match="per_search_limit must be between 1 and 100"
-        ):
+        with pytest.raises(ValueError, match="per_search_limit must be between 1 and 100"):
             await search_indicators(
                 client=mock_client,
                 query="health",
@@ -1092,9 +1056,7 @@ class TestSearchIndicators:
         )
         mock_client.fetch_entity_infos = AsyncMock(
             return_value={
-                "Count_Person": NodeInfo(
-                    name="Population", typeOf=["StatisticalVariable"]
-                )
+                "Count_Person": NodeInfo(name="Population", typeOf=["StatisticalVariable"])
             }
         )
 
@@ -1361,9 +1323,7 @@ class TestSearchIndicators:
                 "country/USA": NodeInfo(name="United States", typeOf=["Country"]),
                 "geoId/06": NodeInfo(name="California", typeOf=["State"]),
                 "geoId/48": NodeInfo(name="Texas", typeOf=["State"]),
-                "Count_Person": NodeInfo(
-                    name="Population", typeOf=["StatisticalVariable"]
-                ),
+                "Count_Person": NodeInfo(name="Population", typeOf=["StatisticalVariable"]),
             }
         )
 
@@ -1392,8 +1352,6 @@ class TestSearchIndicators:
         mock_client = Mock()
         with pytest.raises(
             ValueError,
-            match="`places` must be specified when `parent_place` is provided.",
+            match=r"`places` must be specified when `parent_place` is provided.",
         ):
-            await search_indicators(
-                client=mock_client, query="population", parent_place="USA"
-            )
+            await search_indicators(client=mock_client, query="population", parent_place="USA")

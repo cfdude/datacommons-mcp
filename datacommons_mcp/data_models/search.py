@@ -77,9 +77,7 @@ class SearchVariable(SearchIndicator):
 class SearchTopic(SearchIndicator):
     """Represents a topic object in search results."""
 
-    member_topics: list[str] = Field(
-        default_factory=list, description="Direct member topic DCIDs"
-    )
+    member_topics: list[str] = Field(default_factory=list, description="Direct member topic DCIDs")
     member_variables: list[str] = Field(
         default_factory=list, description="Direct member variable DCIDs"
     )

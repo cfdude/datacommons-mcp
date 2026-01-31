@@ -75,9 +75,7 @@ class PaginationResult:
             result["file_size_bytes"] = self.file_size_bytes
             result["unique_places_count"] = len(self.unique_places)
             if self.companion_files:
-                result["companion_files"] = {
-                    k: str(v) for k, v in self.companion_files.items()
-                }
+                result["companion_files"] = {k: str(v) for k, v in self.companion_files.items()}
 
         return result
 
@@ -193,9 +191,7 @@ class PaginationHandler:
 
         def on_stream_progress(stats: StreamStats) -> None:
             if progress_callback:
-                progress_callback(
-                    stats.pages_processed, stats.rows_written, stats.bytes_written
-                )
+                progress_callback(stats.pages_processed, stats.rows_written, stats.bytes_written)
 
         with CSVStreamer(
             file_path,
@@ -231,9 +227,7 @@ class PaginationHandler:
                 # For now, we'll write the raw observations
                 # In the full implementation, this would use the
                 # processed response from services.py
-                self._write_api_response_page(
-                    streamer, api_response, first_response, pages_fetched
-                )
+                self._write_api_response_page(streamer, api_response, first_response, pages_fetched)
 
             # Get final stats
             stats = streamer.stats
@@ -301,9 +295,7 @@ class PaginationHandler:
                                         variable_dcid=variable_dcid,
                                         variable_name=variable_name,
                                         date=obs.date if hasattr(obs, "date") else "",
-                                        value=obs.value
-                                        if hasattr(obs, "value")
-                                        else 0.0,
+                                        value=obs.value if hasattr(obs, "value") else 0.0,
                                         source_id=source_id,
                                     )
                                 )

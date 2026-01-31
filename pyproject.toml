@@ -89,8 +89,12 @@ select = [
 ]
 ignore = [
     "E501",   # Line too long (handled by formatter)
+    "E402",   # Module level import not at top of file (existing code pattern)
     "B008",   # Do not perform function call in argument defaults (FastAPI uses this pattern)
     "UP007",  # Use X | Y for type annotations (prefer Optional for clarity)
+    "RUF012", # Mutable class attributes (existing code pattern)
+    "RUF013", # Implicit Optional (existing code pattern)
+    "SIM108", # Use ternary operator (existing code pattern)
 ]
 fixable = ["ALL"]
 unfixable = []

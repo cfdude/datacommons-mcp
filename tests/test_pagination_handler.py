@@ -18,6 +18,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
 from datacommons_mcp.data_models.observations import (
     FacetMetadata,
     Node,
@@ -310,7 +311,4 @@ class TestPaginationHandler:
 
         assert result.file_path is not None
         # Resolve both paths to handle symlinks (e.g., /var -> /private/var on macOS)
-        assert (
-            result.file_path.parent.resolve()
-            == (temp_storage / "observations").resolve()
-        )
+        assert result.file_path.parent.resolve() == (temp_storage / "observations").resolve()

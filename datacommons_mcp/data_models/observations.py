@@ -69,9 +69,7 @@ class ObservationDate(BaseModel):
             return v
         except ValueError as e:
             # This will catch errors from dateutil.parser for invalid dates.
-            raise InvalidDateFormatError(
-                f"Date string '{v}' contains an invalid value"
-            ) from e
+            raise InvalidDateFormatError(f"Date string '{v}' contains an invalid value") from e
 
     @staticmethod
     def parse_date(date_str: str) -> datetime:
@@ -182,9 +180,7 @@ class DateRange(BaseModel):
                 return datetime(year=year, month=month, day=day)
 
             # If we reach here, the number of parts is not 1, 2, or 3.
-            raise ValueError(
-                "Date string must be in YYYY, YYYY-MM, or YYYY-MM-DD format."
-            )
+            raise ValueError("Date string must be in YYYY, YYYY-MM, or YYYY-MM-DD format.")
 
         except ValueError as e:
             # Catch multiple potential errors and raise a single, clear custom exception.
@@ -349,9 +345,7 @@ class ObservationPage(ToolResponseBaseModel):
     Used for streaming large datasets to disk without accumulating in memory.
     """
 
-    response: ObservationToolResponse = Field(
-        description="The observation data for this page."
-    )
+    response: ObservationToolResponse = Field(description="The observation data for this page.")
 
     next_token: str | None = Field(
         default=None,

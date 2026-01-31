@@ -26,7 +26,7 @@ from dotenv import load_dotenv
 from fastmcp import FastMCP
 from fastmcp.server.lifespan import lifespan
 
-from ..clients import DCClient, create_dc_client
+from ..clients import create_dc_client
 from ..config import load_config
 from ..data_models.settings import BaseDCSettings, CustomDCSettings, DCSettingsSelector
 from ..utils.output_handler import OutputHandler, OutputHandlerConfig

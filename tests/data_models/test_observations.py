@@ -15,6 +15,7 @@
 from datetime import datetime
 
 import pytest
+from pydantic import ValidationError
 
 # Import the classes and functions to be tested
 from datacommons_mcp.data_models.observations import (
@@ -22,7 +23,6 @@ from datacommons_mcp.data_models.observations import (
     ObservationDate,
 )
 from datacommons_mcp.exceptions import InvalidDateFormatError, InvalidDateRangeError
-from pydantic import ValidationError
 
 
 class TestObservationDate:
@@ -53,7 +53,7 @@ class TestObservationDate:
         """Tests that an invalid date format string raises an error."""
         with pytest.raises(
             ValidationError,
-            match="Date string '2023-13' contains an invalid value.",
+            match=r"Date string '2023-13' contains an invalid value.",
         ):
             ObservationDate(date="2023-13")  # Invalid month
 
@@ -128,9 +128,7 @@ class TestDateRange:
     def test_get_end_date(self):
         """Tests that get_end_date correctly finds the end of a date period."""
         assert DateRange.get_end_date("2023") == datetime(2023, 12, 31)
-        assert DateRange.get_end_date("2023-02") == datetime(
-            2023, 2, 28
-        )  # Non-leap year
+        assert DateRange.get_end_date("2023-02") == datetime(2023, 2, 28)  # Non-leap year
         assert DateRange.get_end_date("2024-02") == datetime(2024, 2, 29)  # Leap year
         assert DateRange.get_end_date("2023-07-15") == datetime(2023, 7, 15)
         with pytest.raises(InvalidDateFormatError, match="for date '2023-13'"):

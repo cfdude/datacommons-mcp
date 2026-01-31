@@ -16,7 +16,7 @@
 import logging
 import sys
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 from fastmcp.server.context import Context
 from fastmcp.server.dependencies import CurrentContext
@@ -37,11 +37,11 @@ logger = logging.getLogger(__name__)
 async def get_observations(
     variable_dcid: str,
     place_dcid: str,
-    child_place_type: Optional[str] = None,
-    source_override: Optional[str] = None,
+    child_place_type: str | None = None,
+    source_override: str | None = None,
     date: str = ObservationDateType.LATEST.value,
-    date_range_start: Optional[str] = None,
-    date_range_end: Optional[str] = None,
+    date_range_start: str | None = None,
+    date_range_end: str | None = None,
     output: Literal["auto", "screen", "file"] = "auto",
     output_format: Literal["csv", "json"] = "csv",
     multi_file: bool = False,
@@ -127,9 +127,7 @@ async def get_observations(
         - `unique_places_count`: Number of unique places in the data.
 
     """
-    await ctx.debug(
-        f"get_observations called: variable={variable_dcid}, place={place_dcid}"
-    )
+    await ctx.debug(f"get_observations called: variable={variable_dcid}, place={place_dcid}")
 
     try:
         # Get client and config from lifespan context

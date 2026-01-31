@@ -18,6 +18,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+
 from datacommons_mcp.utils.multi_file_exporter import (
     ExportedFile,
     MultiFileExporter,
@@ -241,7 +242,7 @@ class TestMultiFileExporter:
         def callback(file_idx, total_files, rows):
             progress.append((file_idx, total_files, rows))
 
-        result = exporter.export_by_place_type(
+        _result = exporter.export_by_place_type(
             rows=sample_rows,
             variable="Count_Person",
             progress_callback=callback,

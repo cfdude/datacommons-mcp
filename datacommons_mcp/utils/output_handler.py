@@ -60,9 +60,7 @@ class OutputHandlerConfig:
     screen_row_threshold: int = 500
 
     @classmethod
-    def from_settings(
-        cls, settings: OutputSettings | None = None
-    ) -> "OutputHandlerConfig":
+    def from_settings(cls, settings: OutputSettings | None = None) -> "OutputHandlerConfig":
         """Create configuration from settings."""
         if settings is None:
             settings = get_output_settings()
@@ -161,9 +159,7 @@ class OutputHandler:
 
         # Override config if parameters provided
         format_to_use = output_format or self.config.output_format
-        multi_file_to_use = (
-            multi_file if multi_file is not None else self.config.multi_file
-        )
+        multi_file_to_use = multi_file if multi_file is not None else self.config.multi_file
 
         # Determine effective output mode
         if output_mode == OutputHandlerMode.SCREEN:
@@ -216,14 +212,9 @@ class OutputHandler:
         Each place may have multiple time series points, so we sum across
         all places and their time series.
         """
-        return sum(
-            len(place_obs.time_series)
-            for place_obs in response.place_observations
-        )
+        return sum(len(place_obs.time_series) for place_obs in response.place_observations)
 
-    def _build_screen_response(
-        self, response: ObservationToolResponse
-    ) -> dict[str, Any]:
+    def _build_screen_response(self, response: ObservationToolResponse) -> dict[str, Any]:
         """Build a standardized screen-mode response."""
         return {
             "output_mode": OutputMode.SCREEN.value,

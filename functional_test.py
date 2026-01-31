@@ -38,7 +38,7 @@ if __name__ == "__main__":
     # Start server - use relative path from script location
     script_dir = os.path.dirname(os.path.abspath(__file__))
     proc = subprocess.Popen(
-        ["uv", "run", "datacommons-mcp", "serve", "stdio"],  # noqa: S607
+        ["uv", "run", "datacommons-mcp", "serve", "stdio"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

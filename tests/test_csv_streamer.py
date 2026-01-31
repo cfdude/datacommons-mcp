@@ -18,6 +18,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+
 from datacommons_mcp.data_models.observations import (
     FacetMetadata,
     Node,
@@ -107,7 +108,7 @@ class TestCSVStreamer:
 
     def test_context_manager_creates_file(self, temp_csv_file):
         """Test that context manager creates file."""
-        with CSVStreamer(temp_csv_file) as streamer:
+        with CSVStreamer(temp_csv_file) as _streamer:
             pass
 
         assert temp_csv_file.exists()
@@ -192,9 +193,7 @@ class TestCSVStreamer:
 
     def test_buffered_writes(self, temp_csv_file):
         """Test that writes are buffered correctly."""
-        with CSVStreamer(
-            temp_csv_file, buffer_size=3, include_lineage=False
-        ) as streamer:
+        with CSVStreamer(temp_csv_file, buffer_size=3, include_lineage=False) as streamer:
             # Write 5 rows (should flush after 3)
             for i in range(5):
                 streamer.write_row(
@@ -441,9 +440,7 @@ class TestFlattenResponseToRows:
         rows = list(flatten_response_to_rows(sample_response))
 
         # Find California 2020 row
-        ca_2020 = [
-            r for r in rows if r.place_dcid == "geoId/06" and r.date == "2020-01-01"
-        ]
+        ca_2020 = [r for r in rows if r.place_dcid == "geoId/06" and r.date == "2020-01-01"]
         assert len(ca_2020) == 1
         assert ca_2020[0].value == 39538223.0
         assert ca_2020[0].place_name == "California"

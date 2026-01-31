@@ -74,9 +74,7 @@ class TestStdioCommand:
 
         try:
             runner = CliRunner()
-            result = runner.invoke(
-                cli, ["serve", "stdio", "--storage-dir", "/tmp/test-data"]
-            )
+            _result = runner.invoke(cli, ["serve", "stdio", "--storage-dir", "/tmp/test-data"])
 
             # Verify environment variable was set
             assert os.environ.get("DC_STORAGE_DIR") == "/tmp/test-data"
@@ -106,9 +104,7 @@ class TestHttpCommand:
     def test_http_custom_ports(self, mock_mcp):
         """Test http command with custom ports."""
         runner = CliRunner()
-        result = runner.invoke(
-            cli, ["serve", "http", "--host", "0.0.0.0", "--port", "9000"]
-        )
+        result = runner.invoke(cli, ["serve", "http", "--host", "0.0.0.0", "--port", "9000"])
 
         assert "9000" in result.output
 
@@ -120,9 +116,7 @@ class TestHttpCommand:
 
         try:
             runner = CliRunner()
-            result = runner.invoke(
-                cli, ["serve", "http", "--storage-dir", "/tmp/test-http-data"]
-            )
+            _result = runner.invoke(cli, ["serve", "http", "--storage-dir", "/tmp/test-http-data"])
 
             # Verify environment variable was set
             assert os.environ.get("DC_STORAGE_DIR") == "/tmp/test-http-data"
