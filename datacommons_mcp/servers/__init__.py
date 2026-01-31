@@ -32,7 +32,6 @@ from .common import (
 # Tool modules are imported by fastmcp_server.py to register their tools
 
 __all__ = [
-    "mcp",
     "OutputOptions",
     "extract_output_options",
     "format_api_error",
@@ -40,4 +39,5 @@ __all__ = [
     "get_client",
     "get_config",
     "get_output_handler",
+    "mcp",
 ]

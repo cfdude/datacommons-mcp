@@ -219,36 +219,28 @@ class CSVStreamer:
         export_keys = ["server_version", "timestamp", "total_pages"]
 
         # Query section
-        query_values = {
-            k: v for k, v in self._lineage_metadata.items() if k in query_keys
-        }
+        query_values = {k: v for k, v in self._lineage_metadata.items() if k in query_keys}
         if query_values:
             lines.append("# Query:")
             for key, value in query_values.items():
                 lines.append(f"#   {key}: {value}")
 
         # Date section
-        date_values = {
-            k: v for k, v in self._lineage_metadata.items() if k in date_keys
-        }
+        date_values = {k: v for k, v in self._lineage_metadata.items() if k in date_keys}
         if date_values:
             lines.append("# Date Filter:")
             for key, value in date_values.items():
                 lines.append(f"#   {key}: {value}")
 
         # Source section
-        source_values = {
-            k: v for k, v in self._lineage_metadata.items() if k in source_keys
-        }
+        source_values = {k: v for k, v in self._lineage_metadata.items() if k in source_keys}
         if source_values:
             lines.append("# Source:")
             for key, value in source_values.items():
                 lines.append(f"#   {key}: {value}")
 
         # Export section
-        export_values = {
-            k: v for k, v in self._lineage_metadata.items() if k in export_keys
-        }
+        export_values = {k: v for k, v in self._lineage_metadata.items() if k in export_keys}
         if export_values:
             lines.append("# Export:")
             for key, value in export_values.items():
@@ -256,9 +248,7 @@ class CSVStreamer:
 
         # Add any other keys not in known sections
         known_keys = set(query_keys + date_keys + source_keys + export_keys)
-        other_values = {
-            k: v for k, v in self._lineage_metadata.items() if k not in known_keys
-        }
+        other_values = {k: v for k, v in self._lineage_metadata.items() if k not in known_keys}
         if other_values:
             lines.append("# Other:")
             for key, value in other_values.items():
@@ -359,9 +349,7 @@ class CSVStreamer:
         rows_written = 0
         variable_dcid = response.variable.dcid or ""
         variable_name = response.variable.name
-        source_id = (
-            response.source_metadata.source_id if response.source_metadata else None
-        )
+        source_id = response.source_metadata.source_id if response.source_metadata else None
 
         for place_obs in response.place_observations:
             rows_written += self._write_place_observation(

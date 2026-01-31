@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 from datacommons_client.client import DataCommonsClient
+
 from datacommons_mcp._constrained_vars import _merge_dicts
 from datacommons_mcp.clients import DCClient, create_dc_client
 from datacommons_mcp.data_models.settings import CustomDCSettings
@@ -67,17 +68,13 @@ def test_filter_variables_includes_place_like_store(mocked_datacommons_client):
     client_under_test.variable_cache = Mock()
     client_under_test.variable_cache.get.side_effect = lambda _: set()
     # Place-like store provides the variable for the place
-    client_under_test._place_like_statvar_store = {
-        "geoId/06": {"dc/variable/Count_Person"}
-    }
+    client_under_test._place_like_statvar_store = {"geoId/06": {"dc/variable/Count_Person"}}
 
     result = client_under_test._filter_variables_by_existence(
         ["dc/variable/Count_Person"], ["geoId/06"]
     )
 
-    assert result == [
-        {"dcid": "dc/variable/Count_Person", "places_with_data": ["geoId/06"]}
-    ]
+    assert result == [{"dcid": "dc/variable/Count_Person", "places_with_data": ["geoId/06"]}]
 
 
 def test_get_topic_places_with_data_includes_place_like_store(
@@ -98,9 +95,7 @@ def test_get_topic_places_with_data_includes_place_like_store(
     # Place-like store provides the variable for the place
     client_under_test._place_like_statvar_store = {"geoId/06": {var_dcid}}
 
-    places = client_under_test._get_topic_places_with_data(
-        topic_dcid, ["geoId/06", "geoId/36"]
-    )
+    places = client_under_test._get_topic_places_with_data(topic_dcid, ["geoId/06", "geoId/36"])
 
     assert places == ["geoId/06"]
 
@@ -108,7 +103,7 @@ def test_get_topic_places_with_data_includes_place_like_store(
 @patch("datacommons_mcp.clients.DCClient._compute_place_like_statvar_store")
 @patch("datacommons_mcp.clients.DataCommonsClient")
 def test_create_custom_client_passes_place_like_constraints(
-    mock_dc_client,  # noqa: ARG001 -- Required for test to pass
+    mock_dc_client,
     mock_compute_store,
 ):
     """Ensure PLACE_LIKE_CONSTRAINTS are forwarded to DCClient constructor logic."""

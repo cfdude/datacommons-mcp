@@ -18,6 +18,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
 from datacommons_mcp.data_models.observations import (
     FacetMetadata,
     Node,
@@ -343,9 +344,7 @@ class TestOutputHandlerEdgeCases:
     """Tests for edge cases and error handling."""
 
     @pytest.mark.asyncio
-    async def test_empty_response_screen_mode(
-        self, mock_client, temp_storage, sample_request
-    ):
+    async def test_empty_response_screen_mode(self, mock_client, temp_storage, sample_request):
         """Test handling of empty response in screen mode."""
         empty_response = ObservationToolResponse(
             variable=Node(dcid="Count_Person", name="Population"),
@@ -368,9 +367,7 @@ class TestOutputHandlerEdgeCases:
         assert result["data"]["place_observations"] == []
 
     @pytest.mark.asyncio
-    async def test_empty_response_file_mode(
-        self, mock_client, temp_storage, sample_request
-    ):
+    async def test_empty_response_file_mode(self, mock_client, temp_storage, sample_request):
         """Test handling of empty response in file mode."""
         empty_response = ObservationToolResponse(
             variable=Node(dcid="Count_Person", name="Population"),
@@ -431,10 +428,7 @@ class TestScreenRowThreshold:
                         name=f"Place {i}",
                         type_of=["County"],
                     ),
-                    time_series=[
-                        (f"202{j}-01-01", float(i * 1000 + j))
-                        for j in range(10)
-                    ],
+                    time_series=[(f"202{j}-01-01", float(i * 1000 + j)) for j in range(10)],
                 )
             )
 

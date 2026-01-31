@@ -34,9 +34,7 @@ from datacommons_mcp.data_models.observations import (
 )
 
 # Type for raw paginated API response
-PaginatedApiResponse = tuple[
-    ObservationApiResponse, str | None
-]  # (response, next_token)
+PaginatedApiResponse = tuple[ObservationApiResponse, str | None]  # (response, next_token)
 from datacommons_mcp.data_models.search import (
     NodeInfo,
     SearchIndicator,
@@ -281,9 +279,7 @@ class DCClient:
         return result
 
     async def fetch_entity_types(self, dcids: list[str]) -> dict:
-        response = self.dc.node.fetch_property_values(
-            node_dcids=dcids, properties="typeOf"
-        )
+        response = self.dc.node.fetch_property_values(node_dcids=dcids, properties="typeOf")
         return {
             dcid: list(response.extract_connected_dcids(dcid, "typeOf"))
             for dcid in response.get_properties()
@@ -300,9 +296,7 @@ class DCClient:
                 results_map[node] = candidates[0].get("dcid", "")
         return results_map
 
-    async def child_place_type_exists(
-        self, parent_place_dcid: str, child_place_type: str
-    ) -> bool:
+    async def child_place_type_exists(self, parent_place_dcid: str, child_place_type: str) -> bool:
         response = self.dc.node.fetch_place_children(
             place_dcids=parent_place_dcid, children_type=child_place_type, as_dict=True
         )
@@ -323,14 +317,11 @@ class DCClient:
             all_variables = {
                 var
                 for var in unfiltered_variables
-                if self.topic_store.has_variable(var)
-                or not re.fullmatch(r"dc/[a-z0-9]{10,}", var)
+                if self.topic_store.has_variable(var) or not re.fullmatch(r"dc/[a-z0-9]{10,}", var)
             }
             self.variable_cache.put(place_dcid, all_variables)
 
-    def _get_variable_places_with_data(
-        self, var_dcid: str, place_dcids: list[str]
-    ) -> list[str]:
+    def _get_variable_places_with_data(self, var_dcid: str, place_dcids: list[str]) -> list[str]:
         places_with_data = []
 
         for place_dcid in place_dcids:
@@ -342,9 +333,7 @@ class DCClient:
                 places_with_data.append(place_dcid)
         return places_with_data
 
-    def _get_topic_places_with_data(
-        self, topic_dcid: str, place_dcids: list[str]
-    ) -> list[str]:
+    def _get_topic_places_with_data(self, topic_dcid: str, place_dcids: list[str]) -> list[str]:
         """Get list of places where the topic has data."""
         if not self.topic_store or not place_dcids:
             return []
@@ -426,9 +415,7 @@ class DCClient:
         """
         # Collect unique queries and place DCIDs from all search tasks
         unique_queries = sorted({task.query for task in search_tasks})
-        all_place_dcids = sorted(
-            {pd for task in search_tasks for pd in task.place_dcids}
-        )
+        all_place_dcids = sorted({pd for task in search_tasks for pd in task.place_dcids})
         # Double the per_search_limit to account for post-fetch place existence checks.
         params = {
             "queries": unique_queries,
@@ -447,12 +434,12 @@ class DCClient:
                 requests.get,
                 endpoint_url,
                 params=params,
-                headers=headers,  # noqa: S113
+                headers=headers,
             )
             response.raise_for_status()
             api_response = response.json()
-            results_by_search, dcid_name_mappings = (
-                self._transform_search_indicators_response(api_response)
+            results_by_search, dcid_name_mappings = self._transform_search_indicators_response(
+                api_response
             )
         except Exception as e:
             logger.error("Error calling /api/nl/search-indicators: %s", e)
@@ -477,9 +464,7 @@ class DCClient:
 
         # Limit the amount of indicators returned by each search_key
         for search_key in results_by_search:
-            results_by_search[search_key] = results_by_search[search_key][
-                :per_search_limit
-            ]
+            results_by_search[search_key] = results_by_search[search_key][:per_search_limit]
 
         # Populate member information for any remaining topics.
         # If include_topics is false, expand topics into variables.
@@ -498,9 +483,7 @@ class DCClient:
 
         if not include_topics:
             for search_key, indicators in results_by_search.items():
-                expanded_indicators = self._expand_topics_to_variables(
-                    indicators, all_place_dcids
-                )
+                expanded_indicators = self._expand_topics_to_variables(indicators, all_place_dcids)
                 results_by_search[search_key] = expanded_indicators[:per_search_limit]
 
         # Merge the remaining indicators into a single SearchResult object (dedup)
@@ -520,9 +503,7 @@ class DCClient:
 
         # Filter the original dcid_name_mappings to only include the final DCIDs
         final_dcid_name_mappings = {
-            dcid: name
-            for dcid, name in dcid_name_mappings.items()
-            if dcid in final_dcids
+            dcid: name for dcid, name in dcid_name_mappings.items() if dcid in final_dcids
         }
 
         # Collect all DCIDs from the final result, including topic members,
@@ -536,9 +517,7 @@ class DCClient:
 
         # Fetch names for any member DCIDs that we don't have a name for yet.
         dcids_to_lookup = [
-            dcid
-            for dcid in sorted(all_final_dcids)
-            if dcid not in final_dcid_name_mappings
+            dcid for dcid in sorted(all_final_dcids) if dcid not in final_dcid_name_mappings
         ]
         if dcids_to_lookup:
             member_names = await self.fetch_entity_names(dcids_to_lookup)
@@ -593,16 +572,12 @@ class DCClient:
                         dcid_name_mappings[dcid] = indicator["name"]
 
                     # Create the appropriate SearchIndicator model
-                    if (DCID_TOPIC_PREFIX in dcid) or (
-                        indicator.get("typeOf") == "Topic"
-                    ):
+                    if (DCID_TOPIC_PREFIX in dcid) or (indicator.get("typeOf") == "Topic"):
                         indicators_for_search.append(
                             SearchTopic(
                                 dcid=dcid,
                                 description=indicator.get("description"),
-                                alternate_descriptions=indicator.get(
-                                    "search_descriptions"
-                                ),
+                                alternate_descriptions=indicator.get("search_descriptions"),
                             )
                         )
                     else:  # Default to variable if not a Topic
@@ -610,9 +585,7 @@ class DCClient:
                             SearchVariable(
                                 dcid=dcid,
                                 description=indicator.get("description"),
-                                alternate_descriptions=indicator.get(
-                                    "search_descriptions"
-                                ),
+                                alternate_descriptions=indicator.get("search_descriptions"),
                             )
                         )
                 if indicators_for_search:
@@ -658,9 +631,7 @@ class DCClient:
             # Filter by existence if places are specified
             if place_dcids:
                 # Create temporary SearchVariable objects for filtering
-                temp_vars = {
-                    dcid: SearchVariable(dcid=dcid) for dcid in member_variables
-                }
+                temp_vars = {dcid: SearchVariable(dcid=dcid) for dcid in member_variables}
                 filtered_indicators = self._filter_indicators_by_existence(
                     list(temp_vars.values()), place_dcids
                 )
@@ -675,9 +646,7 @@ class DCClient:
             topic_obj.member_topics = member_topics
             topic_obj.member_variables = member_variables
 
-    def _check_topic_exists_recursive(
-        self, topic_dcid: str, place_dcids: list[str]
-    ) -> bool:
+    def _check_topic_exists_recursive(self, topic_dcid: str, place_dcids: list[str]) -> bool:
         """Recursively check if any variable in the topic hierarchy exists for any of the places (OR logic)."""
         if not self.topic_store or not place_dcids:
             return False
@@ -713,13 +682,9 @@ class DCClient:
 
         for indicator in indicators:
             if isinstance(indicator, SearchTopic):
-                places_with_data = self._get_topic_places_with_data(
-                    indicator.dcid, place_dcids
-                )
+                places_with_data = self._get_topic_places_with_data(indicator.dcid, place_dcids)
             else:
-                places_with_data = self._get_variable_places_with_data(
-                    indicator.dcid, place_dcids
-                )
+                places_with_data = self._get_variable_places_with_data(indicator.dcid, place_dcids)
             if places_with_data:
                 indicator.places_with_data = places_with_data
                 filtered_indicators.append(indicator)
@@ -776,18 +741,12 @@ class DCClient:
             payload = {"queries": [query]}
 
             try:
-                response = requests.post(  # noqa: S113
-                    api_endpoint, data=json.dumps(payload), headers=headers
-                )
+                response = requests.post(api_endpoint, data=json.dumps(payload), headers=headers)
                 response.raise_for_status()
                 data = response.json()
                 results = data.get("queryResults", {})
 
-                if (
-                    query in results
-                    and "SV" in results[query]
-                    and "CosineScore" in results[query]
-                ):
+                if query in results and "SV" in results[query] and "CosineScore" in results[query]:
                     sv_list = results[query]["SV"]
                     score_list = results[query]["CosineScore"]
 
@@ -796,16 +755,12 @@ class DCClient:
                         {"SV": sv_list[i], "CosineScore": score_list[i]}
                         for i in range(len(sv_list))
                     ]
-                    results_map[query] = all_results[
-                        :max_results
-                    ]  # Limit to max_results
+                    results_map[query] = all_results[:max_results]  # Limit to max_results
                 else:
                     results_map[query] = []
 
-            except Exception as e:  # noqa: BLE001
-                logger.error(
-                    "An unexpected error occurred for query '%s': %s", query, e
-                )
+            except Exception as e:
+                logger.error("An unexpected error occurred for query '%s': %s", query, e)
                 results_map[query] = []
 
         return results_map
@@ -845,7 +800,7 @@ class DCClient:
                     requests.get,
                     endpoint_url,
                     params=params,
-                    headers=headers,  # noqa: S113
+                    headers=headers,
                 )
                 response.raise_for_status()
                 api_response = response.json()
@@ -856,10 +811,8 @@ class DCClient:
                 )
                 results_map[query] = transformed_results
 
-            except Exception as e:  # noqa: BLE001
-                logger.error(
-                    "An unexpected error occurred for query '%s': %s", query, e
-                )
+            except Exception as e:
+                logger.error("An unexpected error occurred for query '%s': %s", query, e)
                 results_map[query] = []
 
         return results_map
@@ -891,9 +844,7 @@ class DCClient:
                             "SV": dcid,
                             "CosineScore": score,
                             "description": indicator.get("description"),
-                            "alternate_descriptions": indicator.get(
-                                "search_descriptions"
-                            ),
+                            "alternate_descriptions": indicator.get("search_descriptions"),
                         }
                     )
 
@@ -1045,9 +996,7 @@ class DCClient:
                 if self.topic_store and sv_dcid in self.topic_store.topics_by_dcid:
                     # If topics are not included, expand topics to variables.
                     if not include_topics:
-                        for variable in self.topic_store.get_topic_descendant_variables(
-                            sv_dcid
-                        ):
+                        for variable in self.topic_store.get_topic_descendant_variables(sv_dcid):
                             if variable not in variable_set:
                                 variables.append(variable)
                                 variable_set.add(variable)
@@ -1079,9 +1028,7 @@ class DCClient:
         for var in variable_dcids:
             places_with_data = self._get_variable_places_with_data(var, place_dcids)
             if places_with_data:
-                existing_variables.append(
-                    {"dcid": var, "places_with_data": places_with_data}
-                )
+                existing_variables.append({"dcid": var, "places_with_data": places_with_data})
 
         return existing_variables
 
@@ -1096,9 +1043,7 @@ class DCClient:
         for topic_dcid in topic_dcids:
             places_with_data = self._get_topic_places_with_data(topic_dcid, place_dcids)
             if places_with_data:
-                existing_topics.append(
-                    {"dcid": topic_dcid, "places_with_data": places_with_data}
-                )
+                existing_topics.append({"dcid": topic_dcid, "places_with_data": places_with_data})
 
         return existing_topics
 
@@ -1145,9 +1090,7 @@ class DCClient:
                 member_variables = [var["dcid"] for var in filtered_variables]
 
                 # Filter member topics by existence
-                filtered_topics = self._filter_topics_by_existence(
-                    member_topics, place_dcids
-                )
+                filtered_topics = self._filter_topics_by_existence(member_topics, place_dcids)
                 # Extract just the dcids from the filtered results
                 member_topics = [topic["dcid"] for topic in filtered_topics]
 
@@ -1262,9 +1205,7 @@ def _create_custom_dc_client(settings: CustomDCSettings) -> DCClient:
 
     if search_scope == SearchScope.BASE_AND_CUSTOM:
         base_topic_store = _create_base_topic_store(settings)
-        topic_store = (
-            topic_store.merge(base_topic_store) if topic_store else base_topic_store
-        )
+        topic_store = topic_store.merge(base_topic_store) if topic_store else base_topic_store
 
     if topic_store:
         logger.info("Custom DC topic store loaded")

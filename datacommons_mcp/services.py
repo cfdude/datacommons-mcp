@@ -85,9 +85,7 @@ async def _validate_and_build_request(
         date_filter = DateRange(start_date=parsed_date.date, end_date=parsed_date.date)
         date_request_type = ObservationDateType.ALL
 
-    if parsed_date.date != ObservationDateType.RANGE and (
-        date_range_start or date_range_end
-    ):
+    if parsed_date.date != ObservationDateType.RANGE and (date_range_start or date_range_end):
         raise ValueError("To specificy a date range, set `date` to 'range'.")
 
     resolved_place_dcid = place_dcid
@@ -162,9 +160,7 @@ def _process_sources_and_filter_observations(
         for place_dcid, place_data in variable_data.byEntity.items():
             for facet_data in place_data.orderedFacets:
                 if facet_data.facetId == source_override:
-                    filtered_obs = filter_by_date(
-                        facet_data.observations, request.date_filter
-                    )
+                    filtered_obs = filter_by_date(facet_data.observations, request.date_filter)
                     if filtered_obs:
                         processed_data_by_place[place_dcid] = (
                             SourceProcessingResult.ProcessedPlaceData(
@@ -206,8 +202,7 @@ def _process_sources_and_filter_observations(
 
     # Calculate the average index for each source. A lower average is better.
     source_avg_indices = {
-        src_id: sum(indices) / len(indices)
-        for src_id, indices in source_indices.items()
+        src_id: sum(indices) / len(indices) for src_id, indices in source_indices.items()
     }
 
     primary_source = max(
@@ -237,14 +232,10 @@ def _process_sources_and_filter_observations(
     for place_dcid, place_data in variable_data.byEntity.items():
         for facet_data in place_data.orderedFacets:
             if facet_data.facetId == primary_source:
-                filtered_obs = filter_by_date(
-                    facet_data.observations, request.date_filter
-                )
+                filtered_obs = filter_by_date(facet_data.observations, request.date_filter)
                 if filtered_obs:
-                    processed_data_by_place[place_dcid] = (
-                        SourceProcessingResult.ProcessedPlaceData(
-                            facet=facet_data, observations=filtered_obs
-                        )
+                    processed_data_by_place[place_dcid] = SourceProcessingResult.ProcessedPlaceData(
+                        facet=facet_data, observations=filtered_obs
                     )
                 # Found the primary source for this place, no need to check others.
                 break
@@ -272,9 +263,7 @@ def _create_place_observation(
             time_series=[],
         )
 
-    time_series: list[TimeSeriesPoint] = [
-        (o.date, o.value) for o in preprocessed_data.observations
-    ]
+    time_series: list[TimeSeriesPoint] = [(o.date, o.value) for o in preprocessed_data.observations]
 
     return PlaceObservation(
         place=place_node,
@@ -296,9 +285,7 @@ async def _build_final_response(
     )
 
     primary_source = None
-    if source_result.primary_source_id and (
-        source_result.primary_source_id in api_response.facets
-    ):
+    if source_result.primary_source_id and (source_result.primary_source_id in api_response.facets):
         facet_metadata = api_response.facets[source_result.primary_source_id]
         primary_source = FacetMetadata(
             source_id=source_result.primary_source_id, **facet_metadata.to_dict()
@@ -307,9 +294,7 @@ async def _build_final_response(
     final_response = ObservationToolResponse(
         variable=metadata_map.get(request.variable_dcid),
         child_place_type=request.child_place_type,
-        source_metadata=primary_source
-        if primary_source
-        else FacetMetadata(source_id="unknown"),
+        source_metadata=primary_source if primary_source else FacetMetadata(source_id="unknown"),
     )
 
     if request.child_place_type:
@@ -333,9 +318,7 @@ async def _build_final_response(
         facet_metadata = api_response.facets.get(alt_source_id)
 
         # If there's only one place in the response, set count to None
-        places_found_count = (
-            count if len(source_result.processed_data_by_place) > 1 else None
-        )
+        places_found_count = count if len(source_result.processed_data_by_place) > 1 else None
 
         if facet_metadata:
             final_response.alternative_sources.append(
@@ -748,9 +731,7 @@ async def _resolve_places(
         raise DataLookupError(msg) from e
 
 
-def _collect_all_dcids(
-    search_result: SearchResult, search_tasks: list[SearchTask]
-) -> set[str]:
+def _collect_all_dcids(search_result: SearchResult, search_tasks: list[SearchTask]) -> set[str]:
     """Collect all DCIDs that need to be looked up.
 
     Args:
@@ -808,16 +789,14 @@ async def _search_vector(
     return await _merge_search_results(results)
 
 
-async def _fetch_and_update_lookups(
-    client: DCClient, dcids: list[str]
-) -> dict[str, NodeInfo]:
+async def _fetch_and_update_lookups(client: DCClient, dcids: list[str]) -> dict[str, NodeInfo]:
     """Fetch entity information for all DCIDs and return as nodes dictionary."""
     if not dcids:
         return {}
 
     try:
         return await client.fetch_entity_infos(dcids)
-    except Exception:  # noqa: BLE001
+    except Exception:
         # If fetching fails, return empty dict (not an error)
         return {}
 

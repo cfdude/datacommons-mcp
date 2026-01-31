@@ -15,7 +15,7 @@
 
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -76,7 +76,9 @@ class TestOutputHandlerIntegration:
             ],
         )
 
-    def test_single_page_returns_screen_mode(self, mock_client, sample_request, sample_response, temp_dir):
+    def test_single_page_returns_screen_mode(
+        self, mock_client, sample_request, sample_response, temp_dir
+    ):
         """Single page response (no next_token) should return screen mode."""
         import asyncio
 
@@ -96,7 +98,9 @@ class TestOutputHandlerIntegration:
         assert "data" in result
         assert result["data"]["variable"]["dcid"] == "Count_Person"
 
-    def test_force_screen_mode_returns_directly(self, mock_client, sample_request, sample_response, temp_dir):
+    def test_force_screen_mode_returns_directly(
+        self, mock_client, sample_request, sample_response, temp_dir
+    ):
         """Forced screen mode should return data directly even with next_token."""
         import asyncio
 
@@ -115,7 +119,9 @@ class TestOutputHandlerIntegration:
         assert result["output_mode"] == "screen"
         assert "data" in result
 
-    def test_force_file_mode_creates_file(self, mock_client, sample_request, sample_response, temp_dir):
+    def test_force_file_mode_creates_file(
+        self, mock_client, sample_request, sample_response, temp_dir
+    ):
         """Forced file mode should create CSV even for single page."""
         import asyncio
 
@@ -140,7 +146,9 @@ class TestOutputHandlerIntegration:
         assert "pages_fetched" in result
         assert Path(result["file_path"]).exists()
 
-    def test_auto_mode_with_pagination_streams_to_file(self, mock_client, sample_request, sample_response, temp_dir):
+    def test_auto_mode_with_pagination_streams_to_file(
+        self, mock_client, sample_request, sample_response, temp_dir
+    ):
         """Auto mode with next_token should stream to file."""
         import asyncio
 
@@ -167,7 +175,9 @@ class TestOutputHandlerIntegration:
         # Should have fetched the second page
         mock_client.fetch_obs_page.assert_called()
 
-    def test_csv_includes_lineage_headers(self, mock_client, sample_request, sample_response, temp_dir):
+    def test_csv_includes_lineage_headers(
+        self, mock_client, sample_request, sample_response, temp_dir
+    ):
         """CSV file should include lineage headers when enabled."""
         import asyncio
 

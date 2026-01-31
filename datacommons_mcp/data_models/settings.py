@@ -83,7 +83,7 @@ class OutputSettings(BaseSettings):
 
     @field_validator("storage_dir", mode="before")
     @classmethod
-    def parse_storage_dir(cls, v: Any) -> Path:  # noqa: ANN401
+    def parse_storage_dir(cls, v: Any) -> Path:
         """Parse storage directory from string or Path, expanding ~ and making absolute."""
         if v is None or (isinstance(v, str) and not v.strip()):
             # Empty or None - use default
@@ -248,7 +248,7 @@ class CustomDCSettings(DCSettings):
         return self
 
 
-def _parse_list_like_parameter(v: Any) -> list[str] | None:  # noqa: ANN401
+def _parse_list_like_parameter(v: Any) -> list[str] | None:
     """Parse a comma-separated string or a list into a list of strings."""
     if isinstance(v, list):
         return [s for s in (str(item).strip() for item in v) if s]

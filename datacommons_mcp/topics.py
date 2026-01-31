@@ -214,9 +214,7 @@ def _flatten_variables_recursive(
 
         if child_node:
             # We don't need to collect member variables for child nodes so we pass an empty dictionary for member_vars
-            _flatten_variables_recursive(
-                child_node, nodes_by_dcid, {}, descendant_vars, visited
-            )
+            _flatten_variables_recursive(child_node, nodes_by_dcid, {}, descendant_vars, visited)
         else:
             # The child is NOT a defined node. Assume it's a variable,
             # but ignore broken topic/svpg links.
@@ -267,14 +265,10 @@ def read_topic_cache(file_path: Path) -> TopicStore:
             )
 
     # Create a lookup for all nodes by their DCID
-    nodes_by_dcid: dict[str, Node] = {
-        node.dcid: node for node in all_nodes if node.dcid
-    }
+    nodes_by_dcid: dict[str, Node] = {node.dcid: node for node in all_nodes if node.dcid}
 
     final_topic_variables: dict[str, TopicVariables] = {}
-    all_topics = [
-        node for node in all_nodes if node.type_of == _TYPE_TOPIC and node.dcid
-    ]
+    all_topics = [node for node in all_nodes if node.type_of == _TYPE_TOPIC and node.dcid]
 
     for topic in all_topics:
         ordered_unique_vars: dict[str, None] = {}
@@ -306,9 +300,7 @@ def read_topic_cache(file_path: Path) -> TopicStore:
     for topic_vars in final_topic_variables.values():
         all_variables_set.update(topic_vars.descendant_variables)
 
-    return TopicStore(
-        topics_by_dcid=final_topic_variables, all_variables=all_variables_set
-    )
+    return TopicStore(topics_by_dcid=final_topic_variables, all_variables=all_variables_set)
 
 
 def _fetch_node_data(
@@ -340,9 +332,7 @@ def _fetch_node_data(
             name_nodes = response.extract_connected_nodes(dcid, "name")
             name = name_nodes[0].value if name_nodes else ""
             # Extract relevantVariable from the arcs structure
-            relevant_var_nodes = response.extract_connected_nodes(
-                dcid, "relevantVariable"
-            )
+            relevant_var_nodes = response.extract_connected_nodes(dcid, "relevantVariable")
             relevant_variables = []
             relevant_var_names = {}
 

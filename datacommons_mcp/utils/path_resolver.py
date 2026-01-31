@@ -127,9 +127,7 @@ class PathResolver:
 
         # Ensure we have something left
         if not sanitized:
-            raise PathSecurityError(
-                f"Filename '{filename}' contains no valid characters"
-            )
+            raise PathSecurityError(f"Filename '{filename}' contains no valid characters")
 
         # Limit length (255 is typical max, leave room for extension)
         max_name_len = 200

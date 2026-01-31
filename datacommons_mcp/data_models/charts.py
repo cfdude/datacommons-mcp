@@ -55,9 +55,7 @@ class SinglePlaceLocation(BaseModel):
     """Defines a location using a specific list of places."""
 
     location_type: Literal["single_place"] = "single_place"
-    place_dcid: str = Field(
-        description="DCID of a single place to display statistical data for."
-    )
+    place_dcid: str = Field(description="DCID of a single place to display statistical data for.")
 
 
 class MultiPlaceLocation(BaseModel):

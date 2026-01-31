@@ -19,6 +19,7 @@ import os
 from unittest.mock import patch
 
 import pytest
+
 from datacommons_mcp.data_models.enums import SearchScope
 from datacommons_mcp.data_models.settings import BaseDCSettings, CustomDCSettings
 from datacommons_mcp.settings import get_dc_settings
@@ -75,9 +76,7 @@ class TestBaseSettings:
         ("env_value", "expected"),
         [("true", True), ("false", False), ("1", True), ("0", False)],
     )
-    def test_use_search_indicators_endpoint_parsing(
-        self, isolated_env, env_value, expected
-    ):
+    def test_use_search_indicators_endpoint_parsing(self, isolated_env, env_value, expected):
         """Tests that DC_USE_SEARCH_INDICATORS_ENDPOINT is parsed correctly."""
         env_vars = {
             "DC_API_KEY": "test_key",

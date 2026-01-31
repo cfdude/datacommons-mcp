@@ -16,7 +16,7 @@
 import json
 import logging
 import sys
-from typing import List, Optional, Union
+from typing import Union
 
 from fastmcp.server.context import Context
 from fastmcp.server.dependencies import CurrentContext
@@ -35,8 +35,8 @@ logger = logging.getLogger(__name__)
 )
 async def search_indicators(
     query: str,
-    places: Optional[Union[List[str], str]] = None,
-    parent_place: Optional[str] = None,
+    places: Union[list[str], str] | None = None,
+    parent_place: str | None = None,
     per_search_limit: int = 10,
     *,
     include_topics: bool = True,
