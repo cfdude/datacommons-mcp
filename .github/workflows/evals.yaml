@@ -59,7 +59,7 @@ jobs:
       - name: Run agent evals with pytest
         # Run evals if code in the datacommons-mcp package or evals directory changed
         if: steps.filter.outputs.run_evals == 'true'
-        run: uv run --extra test pytest -k "eval"
+        run: uv run --extra dev pytest -k "eval"
         env:
           DC_API_KEY: ${{ secrets.DC_API_KEY }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
