@@ -20,6 +20,7 @@ Tool modules import `mcp` from here to register their tools.
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -34,6 +35,56 @@ from ..utils.pagination_handler import PaginationHandler
 from ..utils.path_resolver import PathResolver
 
 logger = logging.getLogger(__name__)
+
+# Project/extension root: three levels up from servers/base.py
+# servers/base.py -> servers/ -> datacommons_mcp/ -> project_root/
+_PROJECT_ROOT = Path(__file__).parent.parent.parent
+
+
+def _load_env_with_fallback() -> None:
+    """Load environment variables with fallback for unresolved extension templates.
+
+    When this server runs as a Claude extension without user_config filled in,
+    DC_* env vars arrive as literal template strings like "${user_config.api_key}"
+    instead of real values. This function:
+
+    1. Detects and removes those unresolved template literals from os.environ
+       so pydantic-settings doesn't treat them as real values.
+    2. Searches for a .env file in multiple locations before falling back to
+       the standard CWD search — necessary because CWD is unpredictable when
+       launched by Claude Code or Claude Desktop.
+
+    Search order for .env:
+      - DC_STORAGE_DIR (if set and resolved)
+      - Package root (alongside the installed package)
+      - Current working directory
+      - User home directory (~/.env)
+    """
+    # Strip unresolved Claude extension template literals (e.g. "${user_config.api_key}")
+    unresolved = [k for k, v in os.environ.items() if k.startswith("DC_") and v.startswith("${")]
+    for key in unresolved:
+        logger.info("Removing unresolved extension template for %s; will look for .env fallback", key)
+        del os.environ[key]
+
+    # Build ordered list of candidate .env paths
+    candidates: list[Path] = []
+
+    storage_dir = os.environ.get("DC_STORAGE_DIR", "")
+    if storage_dir and not storage_dir.startswith("${"):
+        candidates.append(Path(storage_dir) / ".env")
+
+    candidates.append(_PROJECT_ROOT / ".env")
+    candidates.append(Path.cwd() / ".env")
+    candidates.append(Path.home() / ".env")
+
+    for path in candidates:
+        if path.exists():
+            logger.info("Loading .env from %s", path)
+            load_dotenv(path)
+            return
+
+    # No .env found anywhere; load_dotenv with no args is a no-op but harmless
+    load_dotenv()
 
 
 def _get_dc_settings():
@@ -55,7 +106,7 @@ async def dc_lifespan(server: FastMCP):
     - output_handler: OutputHandler for smart output routing
     - path_resolver: PathResolver for file paths
     """
-    load_dotenv()
+    _load_env_with_fallback()
     config = load_config()
     dc_settings = _get_dc_settings()
 

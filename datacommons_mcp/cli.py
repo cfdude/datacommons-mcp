@@ -20,6 +20,7 @@ Data Commons MCP server in different transport modes.
 import logging
 import os
 import sys
+from pathlib import Path
 
 import click
 
@@ -123,6 +124,11 @@ def stdio(verbose: bool, storage_dir: str | None) -> None:
 
 def main() -> None:
     """Main entry point for the CLI."""
+    # Set working directory to user's home to avoid macOS TCC prompts
+    # when cwd is / (root). Claude Desktop launches extensions without
+    # setting cwd, which causes privacy permission dialogs for every
+    # protected directory (Desktop, Documents, Google Drive, etc.)
+    os.chdir(Path.home())
     cli()
 
 

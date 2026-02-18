@@ -14,9 +14,9 @@
     "type": "python",
     "entry_point": "datacommons_mcp/run_server.py",
     "mcp_config": {
-      "command": "python",
+      "command": "bash",
       "args": [
-        "${__dirname}/datacommons_mcp/run_server.py"
+        "${__dirname}/run_server.sh"
       ],
       "env": {
         "DC_API_KEY": "${user_config.api_key}",

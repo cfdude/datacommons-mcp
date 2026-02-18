@@ -24,7 +24,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings as BaseModel
 
 from .data_models.enums import SearchScope
 

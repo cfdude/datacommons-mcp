@@ -20,6 +20,16 @@ and provides the run function.
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
+# Set working directory to user's home to avoid macOS TCC prompts
+# when cwd is / (root). Claude Desktop launches extensions without
+# setting cwd, which causes privacy permission dialogs for every
+# protected directory (Desktop, Documents, Google Drive, etc.)
+if os.getcwd() == "/":
+    os.chdir(Path.home())
+
 # Import all tool modules to register their tools with the server
 # The @mcp.tool decorators in each module register the tools on import
 from .servers import (
