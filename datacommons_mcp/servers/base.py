@@ -63,7 +63,9 @@ def _load_env_with_fallback() -> None:
     # Strip unresolved Claude extension template literals (e.g. "${user_config.api_key}")
     unresolved = [k for k, v in os.environ.items() if k.startswith("DC_") and v.startswith("${")]
     for key in unresolved:
-        logger.info("Removing unresolved extension template for %s; will look for .env fallback", key)
+        logger.info(
+            "Removing unresolved extension template for %s; will look for .env fallback", key
+        )
         del os.environ[key]
 
     # Build ordered list of candidate .env paths
