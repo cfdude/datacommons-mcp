@@ -20,7 +20,6 @@ Running as a script (rather than a module) means relative imports won't work
 without first adding the package root to sys.path.
 """
 
-import os
 import sys
 from pathlib import Path
 
