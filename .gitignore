@@ -204,3 +204,4 @@ agent-toolkit.mcpb
 
 # Temporary files
 /tmp/
+.mcp.json
