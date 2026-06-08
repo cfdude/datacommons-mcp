@@ -1,11 +1,15 @@
 #!/bin/bash
 set -e
 
-# Build script for DataCommons MCP Claude Desktop Extension
-# Creates a .mcpb bundle with all dependencies for easy installation
-# Tested and verified with real DataCommons API (see docs/extension-compatibility.md)
+# Build script for the Data Commons MCP Claude Desktop Extension
+# Creates a .mcpb bundle for easy installation.
+#
+# Dependencies are NOT prebundled. The bundle ships the dependency *spec*
+# (pyproject.toml + uv.lock); run_server.sh uses uv to build the locked
+# environment against the user's Python on first launch. This keeps the
+# bundle small and avoids shipping CPython-version-specific compiled wheels.
 
-echo "Building DataCommons MCP extension..."
+echo "Building Data Commons MCP extension..."
 
 # Clean previous builds
 rm -rf build/ 2>/dev/null || true
@@ -15,24 +19,18 @@ rm -f agent-toolkit.mcpb 2>/dev/null || true
 # Create build directory structure
 mkdir -p build
 
-# Copy the source code and shell entry point
-cp -r datacommons_mcp build/
+# Copy the source code and shell entry point. Exclude Python bytecode caches —
+# they bloat the bundle and can be stale for the wrong interpreter (uv runs from
+# source). rsync keeps this portable (macOS ships bash 3.2 without globstar).
+rsync -a --exclude='__pycache__/' --exclude='*.pyc' --exclude='*.pyo' \
+    datacommons_mcp build/
 cp run_server.sh build/
 
-# Create a lib directory for dependencies
-mkdir -p build/lib
-
-# Install dependencies into the lib directory using uv
-# Target Python 3.12 (/usr/local/bin/python3) for wheel compatibility.
-# Claude Desktop's PATH includes /usr/local/bin before /usr/bin, so the shell
-# script wrapper (run_server.sh) will pick up this interpreter, not the
-# Apple system Python 3.9 at /usr/bin/python3.
-echo "Installing Python dependencies..."
-uv pip install \
-  --target build/lib \
-  --python /usr/local/bin/python3 \
-  --prerelease=allow \
-  "fastmcp>=3.0.0b1" requests datacommons-client pydantic pydantic-settings python-dateutil
+# Copy the dependency spec uv needs to resolve/build at runtime.
+# pyproject.toml + uv.lock pin the exact dependency versions (reproducible);
+# README.md and LICENSE are referenced by pyproject.toml and required to
+# build the local package.
+cp pyproject.toml uv.lock README.md LICENSE build/
 
 # Copy manifest to build directory
 cp manifest.json build/
