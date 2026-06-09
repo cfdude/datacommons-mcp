@@ -1,12 +1,12 @@
 ## 1. Dependency CVE remediation (`dependency-security`)
 
-- [ ] 1.1 Update `pyproject.toml`: change `fastmcp` to `>=3.4,<4` (off the `3.0.0b1` beta).
-- [ ] 1.2 Update `pyproject.toml`: add/raise bounds for `authlib` (transitive — pin floor `>=1.6.12` if declared, else rely on lock upgrade), `cryptography>=46.0.7`, and ensure `pyjwt`, `urllib3`, `python-multipart`, `python-dotenv`, `pygments` resolve to fixed versions.
-- [ ] 1.3 Add explicit `>=X,<NEXT_MAJOR` bounds to currently-unbounded direct deps: `requests`, `datacommons-client`, `pydantic-settings`.
-- [ ] 1.4 Bump dev dep `pytest` to `>=9.0.3,<10` (CVE-2025-71176) — raise the current `<9.0.0` cap; pytest 9 is a major bump, so let task 1.6's suite run catch any `pytest-asyncio`/`pytest-cov` compat breakage (re-lock those too if needed).
-- [ ] 1.5 Run `uv lock --upgrade-package fastmcp --upgrade-package authlib --upgrade-package cryptography --upgrade-package pyjwt --upgrade-package urllib3 --upgrade-package requests --upgrade-package python-multipart --upgrade-package python-dotenv --upgrade-package pytest --upgrade-package pygments` and review the `uv.lock` diff.
-- [ ] 1.6 Run `uv run ruff format --check && uv run ruff check && uv run pytest -m "not e2e"`; fix any FastMCP beta→GA API breakage (RED→GREEN). If a hard blocker, fall back to a bounded 2.x pin and document why.
-- [ ] 1.7 Verify with Trivy/`uv` that no runtime package carries a pre-release suffix and no Critical/High CVE remains except documented exceptions.
+- [x] 1.1 Update `pyproject.toml`: change `fastmcp` to `>=3.4,<4` (off the `3.0.0b1` beta).
+- [x] 1.2 Update `pyproject.toml`: add/raise bounds for `authlib` (transitive — pin floor `>=1.6.12` if declared, else rely on lock upgrade), `cryptography>=46.0.7`, and ensure `pyjwt`, `urllib3`, `python-multipart`, `python-dotenv`, `pygments` resolve to fixed versions.
+- [x] 1.3 Add explicit `>=X,<NEXT_MAJOR` bounds to currently-unbounded direct deps: `requests`, `datacommons-client`, `pydantic-settings`.
+- [x] 1.4 Bump dev dep `pytest` to `>=9.0.3,<10` (CVE-2025-71176) — raise the current `<9.0.0` cap; pytest 9 is a major bump, so let task 1.6's suite run catch any `pytest-asyncio`/`pytest-cov` compat breakage (re-lock those too if needed).
+- [x] 1.5 Run `uv lock --upgrade-package fastmcp --upgrade-package authlib --upgrade-package cryptography --upgrade-package pyjwt --upgrade-package urllib3 --upgrade-package requests --upgrade-package python-multipart --upgrade-package python-dotenv --upgrade-package pytest --upgrade-package pygments` and review the `uv.lock` diff.
+- [x] 1.6 Run `uv run ruff format --check && uv run ruff check && uv run pytest -m "not e2e"`; fix any FastMCP beta→GA API breakage (RED→GREEN). If a hard blocker, fall back to a bounded 2.x pin and document why.
+- [x] 1.7 Verify with Trivy/`uv` that no runtime package carries a pre-release suffix and no Critical/High CVE remains except documented exceptions.
 
 ## 2. External-data contract guard (`dependency-security`)
 
