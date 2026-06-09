@@ -20,7 +20,7 @@
 ## 4. Trim documentation (`repo-cleanliness`)
 
 - [x] 4.1 Delete `docs/internal/evals.md` (documents only the removed eval suite).
-- [x] 4.2 Trim ADK/Gemini/eval references from `README.md`, `docs/quickstart.md`, `docs/user_guide.md`, `docs/extension-compatibility.md` (remove those sections/instructions; keep the MCP-server content).
+- [x] 4.2 Trim ADK/Gemini/eval references from `README.md` and `docs/user_guide.md` (removed the sample-agent + Colab sections/bullets; kept MCP-server content). `docs/quickstart.md` and `docs/extension-compatibility.md` verified clean — no edit needed (their Gemini-CLI / "Custom ADK Agents" mentions are valid external-client references, not the deleted code; broader docs modernization is change #7).
 - [x] 4.3 Grep docs for dangling links/paths to deleted files (`evals/`, `examples/`, `internal/evals.md`) and fix/remove any.
 - [x] 4.4 Remove now-dead ignore patterns from `.mcpbignore` (`**/evals/`, `SPRINT_*.md`) — they reference deleted paths and contradict the repo-cleanliness goal of no dangling references to removed features.
 

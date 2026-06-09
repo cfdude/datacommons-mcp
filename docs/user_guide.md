@@ -32,7 +32,6 @@ The server supports both standard MCP [transport protocols](https://modelcontext
 
 See [Basic usage](#basic-usage) below for how to use the server with Google-based clients over Stdio.
 
-
 ### Unsupported features
 
 At the current time, the following are not supported:
