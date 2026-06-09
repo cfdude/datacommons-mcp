@@ -1,0 +1,68 @@
+{
+  "queryResults": [
+    {
+      "query": "population",
+      "indexResults": [
+        {
+          "index": "base_uae_mem",
+          "defaultThreshold": 0.7,
+          "results": [
+            {
+              "dcid": "Count_Person",
+              "name": "Total population",
+              "description": "The total number of people in a population.",
+              "typeOf": "StatisticalVariable",
+              "score": 0.8982370495796204,
+              "search_descriptions": [
+                "population count"
+              ]
+            },
+            {
+              "dcid": "IncrementalCount_Person",
+              "name": "Population Change",
+              "description": null,
+              "typeOf": "StatisticalVariable",
+              "score": 0.8723466396331787,
+              "search_descriptions": [
+                "population change"
+              ]
+            },
+            {
+              "dcid": "Count_Person_PerArea",
+              "name": "Population Density",
+              "description": null,
+              "typeOf": "StatisticalVariable",
+              "score": 0.8354316353797913,
+              "search_descriptions": [
+                "Population Density"
+              ]
+            },
+            {
+              "dcid": "dc/topic/Demographics",
+              "name": "Demographics",
+              "description": null,
+              "typeOf": "Topic",
+              "score": 0.8210721611976624,
+              "search_descriptions": [
+                "Demographics"
+              ]
+            },
+            {
+              "dcid": "Count_Person_18OrMoreYears",
+              "name": "Population: 18 Years or More",
+              "description": null,
+              "typeOf": "StatisticalVariable",
+              "score": 0.816661536693573,
+              "search_descriptions": [
+                "adult population count"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "responseMetadata": {
+    "thresholdOverride": null
+  }
+}
