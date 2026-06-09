@@ -43,10 +43,32 @@ jobs:
             echo "bump=false" >> $GITHUB_OUTPUT
           fi
 
-  # JOB 2: Builds and publishes the package IF a bump was detected
+  # JOB 1b: Lint + test gate — a red build must never publish to PyPI
+  ci_gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Lint (ruff format + check)
+        run: |
+          uv run ruff format --check
+          uv run ruff check
+
+      - name: Test (pytest, excluding e2e)
+        run: uv run pytest -m "not e2e"
+
+  # JOB 2: Builds and publishes the package IF a bump was detected AND CI is green
   build_and_publish:
-    # This job depends on 'check_version' finishing successfully
-    needs: check_version
+    # Publish only when the version was bumped AND lint+tests pass
+    needs: [check_version, ci_gate]
     # This is the key: the job only runs if a version bump was detected
     if: needs.check_version.outputs.bump == 'true'
     runs-on: ubuntu-latest
