@@ -1,0 +1,60 @@
+{
+  "data": {
+    "Count_Person": {
+      "arcs": {
+        "name": {
+          "nodes": [
+            {
+              "provenanceId": "dc/base/HumanReadableStatVars",
+              "value": "Total population"
+            }
+          ]
+        },
+        "typeOf": {
+          "nodes": [
+            {
+              "name": "StatisticalVariable",
+              "types": [
+                "Class"
+              ],
+              "dcid": "StatisticalVariable",
+              "provenanceId": "dc/base/HumanReadableStatVars"
+            }
+          ]
+        }
+      }
+    },
+    "geoId/06": {
+      "arcs": {
+        "name": {
+          "nodes": [
+            {
+              "provenanceId": "dc/base/WikidataOtherIdGeos",
+              "value": "California"
+            }
+          ]
+        },
+        "typeOf": {
+          "nodes": [
+            {
+              "name": "AdministrativeArea1",
+              "types": [
+                "Class"
+              ],
+              "dcid": "AdministrativeArea1",
+              "provenanceId": "dc/base/WikidataOtherIdGeos"
+            },
+            {
+              "name": "State",
+              "types": [
+                "Class"
+              ],
+              "dcid": "State",
+              "provenanceId": "dc/base/WikidataOtherIdGeos"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

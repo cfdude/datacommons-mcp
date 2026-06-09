@@ -1,0 +1,185 @@
+{
+  "byVariable": {
+    "Count_Person": {
+      "byEntity": {
+        "geoId/06": {
+          "orderedFacets": [
+            {
+              "facetId": "2176550201",
+              "observations": [
+                {
+                  "date": "2025",
+                  "value": 39355309
+                }
+              ],
+              "obsCount": 1,
+              "earliestDate": "2025",
+              "latestDate": "2025"
+            },
+            {
+              "facetId": "1145703171",
+              "observations": [
+                {
+                  "date": "2024",
+                  "value": 39287377
+                }
+              ],
+              "obsCount": 1,
+              "earliestDate": "2024",
+              "latestDate": "2024"
+            },
+            {
+              "facetId": "1541763368",
+              "observations": [
+                {
+                  "date": "2020",
+                  "value": 39538223
+                }
+              ],
+              "obsCount": 1,
+              "earliestDate": "2020",
+              "latestDate": "2020"
+            },
+            {
+              "facetId": "1964317807",
+              "observations": [
+                {
+                  "date": "2024",
+                  "value": 39287377
+                }
+              ],
+              "obsCount": 1,
+              "earliestDate": "2024",
+              "latestDate": "2024"
+            },
+            {
+              "facetId": "4181918134",
+              "observations": [
+                {
+                  "date": "2023",
+                  "value": 39198693
+                }
+              ],
+              "obsCount": 1,
+              "earliestDate": "2023",
+              "latestDate": "2023"
+            },
+            {
+              "facetId": "10983471",
+              "observations": [
+                {
+                  "date": "2023",
+                  "value": 39242785
+                }
+              ],
+              "obsCount": 1,
+              "earliestDate": "2023",
+              "latestDate": "2023"
+            },
+            {
+              "facetId": "196790193",
+              "observations": [
+                {
+                  "date": "2023",
+                  "value": 39242785
+                }
+              ],
+              "obsCount": 1,
+              "earliestDate": "2023",
+              "latestDate": "2023"
+            },
+            {
+              "facetId": "2825511676",
+              "observations": [
+                {
+                  "date": "2020",
+                  "value": 39368078
+                }
+              ],
+              "obsCount": 1,
+              "earliestDate": "2020",
+              "latestDate": "2020"
+            },
+            {
+              "facetId": "2517965213",
+              "observations": [
+                {
+                  "date": "2019",
+                  "value": 39512223
+                }
+              ],
+              "obsCount": 1,
+              "earliestDate": "2019",
+              "latestDate": "2019"
+            },
+            {
+              "facetId": "1226172227",
+              "observations": [
+                {
+                  "date": "2019",
+                  "value": 39512223
+                }
+              ],
+              "obsCount": 1,
+              "earliestDate": "2019",
+              "latestDate": "2019"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "facets": {
+    "1541763368": {
+      "importName": "USDecennialCensus_RedistrictingRelease",
+      "provenanceUrl": "https://www.census.gov/programs-surveys/decennial-census/about/rdo/summary-files.html",
+      "measurementMethod": "USDecennialCensus"
+    },
+    "4181918134": {
+      "importName": "OECDRegionalDemography_Population",
+      "provenanceUrl": "https://data-explorer.oecd.org/vis?fs[0]=Topic%2C0%7CRegional%252C%20rural%20and%20urban%20development%23GEO%23&pg=40&fc=Topic&bp=true&snb=117&df[ds]=dsDisseminateFinalDMZ&df[id]=DSD_REG_DEMO%40DF_POP_5Y&df[ag]=OECD.CFE.EDS&df[vs]=2.0&dq=A.......&to[TIME_PERIOD]=false&vw=tb&pd=%2C",
+      "measurementMethod": "OECDRegionalStatistics",
+      "observationPeriod": "P1Y"
+    },
+    "2825511676": {
+      "importName": "CDC_Mortality_UnderlyingCause",
+      "provenanceUrl": "https://wonder.cdc.gov/ucd-icd10.html"
+    },
+    "1226172227": {
+      "importName": "CensusACS1YearSurvey",
+      "provenanceUrl": "https://www.census.gov/programs-surveys/acs/data/data-via-ftp.html",
+      "measurementMethod": "CensusACS1yrSurvey"
+    },
+    "196790193": {
+      "importName": "CensusACS5YearSurvey_SubjectTables_S2602",
+      "provenanceUrl": "https://data.census.gov/cedsci/table?q=S2602&tid=ACSST5Y2023.S2602",
+      "measurementMethod": "CensusACS5yrSurveySubjectTable"
+    },
+    "2517965213": {
+      "importName": "CensusPEP",
+      "provenanceUrl": "https://www.census.gov/programs-surveys/popest.html",
+      "measurementMethod": "CensusPEPSurvey"
+    },
+    "2176550201": {
+      "importName": "USCensusPEP_Annual_Population",
+      "provenanceUrl": "https://www.census.gov/programs-surveys/popest.html",
+      "measurementMethod": "CensusPEPSurvey",
+      "observationPeriod": "P1Y"
+    },
+    "10983471": {
+      "importName": "CensusACS5YearSurvey_SubjectTables_S2601A",
+      "provenanceUrl": "https://data.census.gov/cedsci/table?q=S2601A&tid=ACSST5Y2023.S2601A",
+      "measurementMethod": "CensusACS5yrSurveySubjectTable"
+    },
+    "1145703171": {
+      "importName": "CensusACS5YearSurvey",
+      "provenanceUrl": "https://www.census.gov/programs-surveys/acs/data/data-via-ftp.html",
+      "measurementMethod": "CensusACS5yrSurvey"
+    },
+    "1964317807": {
+      "importName": "CensusACS5YearSurvey_SubjectTables_S0101",
+      "provenanceUrl": "https://data.census.gov/table?q=S0101:+Age+and+Sex&tid=ACSST1Y2024.S0101",
+      "measurementMethod": "CensusACS5yrSurveySubjectTable"
+    }
+  }
+}
