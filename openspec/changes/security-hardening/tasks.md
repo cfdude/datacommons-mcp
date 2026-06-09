@@ -10,8 +10,8 @@
 
 ## 2. External-data contract guard (`dependency-security`)
 
-- [ ] 2.1 Add a contract test (e.g. `tests/test_observation_contract.py`) that parses `docs/audits/api-samples/v2-observation.json` through the `datacommons-client` observation models into `FacetMetadata`, asserting: (a) parse succeeds; (b) `import_name` and `provenance_url` map non-null for every facet; (c) the fully-populated facet `4181918134` maps all four lineage fields non-null. Do NOT assert the optional `measurement_method`/`observation_period` are present on all facets — they are legitimately absent on some (verified in the fixture: `observation_period` on 2/10, `measurement_method` missing on facet `2825511676`). The test guards the alias-mapping (the silent-`None` drift surface), not field presence.
-- [ ] 2.2 Add an accepted-risk note for `diskcache` CVE-2025-69872 (no fix) — record exploitability assessment + monitoring intent (e.g. in `docs/audits/` or a `SECURITY.md`).
+- [x] 2.1 Add a contract test (e.g. `tests/test_observation_contract.py`) that parses `docs/audits/api-samples/v2-observation.json` through the `datacommons-client` observation models into `FacetMetadata`, asserting: (a) parse succeeds; (b) `import_name` and `provenance_url` map non-null for every facet; (c) the fully-populated facet `4181918134` maps all four lineage fields non-null. Do NOT assert the optional `measurement_method`/`observation_period` are present on all facets — they are legitimately absent on some (verified in the fixture: `observation_period` on 2/10, `measurement_method` missing on facet `2825511676`). The test guards the alias-mapping (the silent-`None` drift surface), not field presence.
+- [x] 2.2 ~~Add an accepted-risk note for `diskcache` CVE-2025-69872 (no fix)~~ — **N/A: obsolete.** The `fastmcp` 3.0.0b1→3.4.0 upgrade removed `diskcache` from the dependency tree entirely (replaced by `py-key-value-aio`/`caio`), so the no-fix CVE no longer applies. Verified absent from `uv.lock`.
 
 ## 3. Supply-chain scanning config (`supply-chain-scanning`)
 
