@@ -205,3 +205,6 @@ agent-toolkit.mcpb
 # Temporary files
 /tmp/
 .mcp.json
+
+# Runtime data exports (CSV/JSON) — never commit
+datacommons-data/
