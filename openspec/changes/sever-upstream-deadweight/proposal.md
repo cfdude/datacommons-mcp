@@ -1,6 +1,11 @@
 ## Why
 
-`datacommons-mcp` is a fork of the upstream `datacommonsorg/agent-toolkit` and still carries dead weight from it: a non-functional Google ADK / Gemini eval suite and sample agent (which import `google.adk` — not even a declared dependency), dead modules, a loose root-level manual test, a sprint doc, runtime CSV output checked into git, and several declared-but-unused dependencies (`fastapi`, `tiktoken`, `httpx`, `respx`). Meanwhile `click` is used by the CLI but only present transitively. This is change #2 of the overhaul (`docs/audits/2026-06-08-forensic-review.md`), sequenced right after security because it is pure deletion with verified zero/contained blast radius and it unblocks the later refactors by shrinking the surface.
+`datacommons-mcp` is a fork of the upstream `datacommonsorg/agent-toolkit` and still carries dead weight from it. Dead weight is judged here by **value and fit to this MCP server**, not merely by whether something is imported:
+
+- **The Google ADK / Gemini code (`evals/`, `examples/`) fails the fit test outright.** It is not part of the server — it is a *client* of it: a sample `LlmAgent` and a Gemini-powered eval harness that consume the server's tools via `MCPToolset`. A consumer of the server has no business shipping *inside* the server's package (it belongs in docs or a separate repo). It is also stale and unmaintainable here: `google-adk` is **undeclared and unpinned**, written against a ~2025 API, while the framework has since churned through **71 releases to 2.2.0** (0.x→2.x) — so it cannot even import, let alone run.
+- **The rest is conventional dead weight:** a dead module with zero importers, a loose root-level manual test, a sprint doc, runtime CSV output committed to git, and declared-but-unused dependencies (`fastapi`, `tiktoken`, `httpx`, `respx`). `click` is used by the CLI but only present transitively.
+
+This is change #2 of the overhaul (`docs/audits/2026-06-08-forensic-review.md`), sequenced right after security because it is pure deletion with verified zero/contained blast radius and it unblocks the later refactors by shrinking the surface. (The deeper value/fit evaluation of *live* code — does each module earn its place? — is applied in change #4 `modularize-core`.)
 
 ## What Changes
 
