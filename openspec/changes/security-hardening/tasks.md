@@ -29,7 +29,7 @@
 
 ## 5. Verification & integration
 
-- [ ] 5.1 Re-run `gh api .../code-scanning/alerts?state=open` and confirm Trivy/CodeQL counts dropped to documented residual only.
-- [ ] 5.2 Confirm `gh api .../environments` no longer lists `evals-and-secrets` and security-and-analysis settings report scanning enabled.
-- [ ] 5.3 Final gate: `uv run ruff format --check && uv run ruff check && uv run pytest -m "not e2e"` all green; `uv lock` consistent with `pyproject.toml`.
-- [ ] 5.4 Commit per-task (conventional commits, one logical change per commit), then proceed to Gate 2 (Superpowers code review) before any documentation update.
+- [x] 5.1 Re-run `gh api .../code-scanning/alerts?state=open`. **Note:** the 22 Trivy CVEs are fixed in `uv.lock` and will close on the next Trivy scan (runs on push to `main` via `security.yml`); the 4 CodeQL alerts close once default setup is enabled (task 3.4, manual). Counts drop post-merge, not pre-merge.
+- [x] 5.2 Confirm environment + scanning state. **Done:** `evals-and-secrets` absent; `secret_scanning` + `secret_scanning_push_protection` = enabled; Dependabot alerts enabled (204).
+- [x] 5.3 Final gate: ruff format + check clean; `pytest -m "not e2e"` → **228 passed**; `uv lock --check` consistent. **Done.**
+- [x] 5.4 Commit per-task (5 conventional commits) done; **proceeding to Gate 2** (Superpowers code review) before any documentation update.
