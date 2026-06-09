@@ -15,11 +15,11 @@
 
 ## 3. Supply-chain scanning config (`supply-chain-scanning`)
 
-- [ ] 3.1 Create `.github/dependabot.yml` with `version: 2` and update entries for the Python ecosystem (uv/pip) at `/` and `github-actions` at `/`, weekly, with grouped Python updates and `open-pull-requests-limit`.
-- [ ] 3.2 Enable Dependabot **alerts** via `gh api -X PUT repos/cfdude/datacommons-mcp/vulnerability-alerts` (the alerts toggle; NOT the `security_and_analysis` PATCH, which governs secret-scanning + `dependabot_security_updates`). Document the Settings-UI fallback if the token lacks admin scope. Verify against the current GitHub REST reference before running.
-- [ ] 3.3 Enable secret scanning + push protection via `gh api -X PATCH repos/cfdude/datacommons-mcp` with `security_and_analysis.{secret_scanning, secret_scanning_push_protection}` set to `enabled` (or documented manual fallback).
-- [ ] 3.4 Enable CodeQL default setup for `actions` + `python` via `gh api -X PUT .../code-scanning/default-setup` (or documented manual fallback); confirm the 4 stale alerts close after the next scan.
-- [ ] 3.5 Pin the reusable workflow references in `.github/workflows/security.yml` (`cfdude/.github/...@main`, lines 13 & 19) to immutable commit SHAs (with a `# <ref>` comment), closing the mutable-ref supply-chain gap.
+- [x] 3.1 Create `.github/dependabot.yml` with `version: 2` and update entries for the Python ecosystem (uv/pip) at `/` and `github-actions` at `/`, weekly, with grouped Python updates and `open-pull-requests-limit`.
+- [x] 3.2 Enable Dependabot **alerts** via `gh api -X PUT repos/cfdude/datacommons-mcp/vulnerability-alerts`. **Done** (HTTP 204).
+- [x] 3.3 Enable secret scanning + push protection via `gh api -X PATCH repos/cfdude/datacommons-mcp` with `security_and_analysis`. **Done** — both report `enabled`.
+- [ ] 3.4 Enable CodeQL default setup for `actions` + `python`. **BLOCKED (manual admin step required):** the `PUT .../code-scanning/default-setup` API returns HTTP 404 despite a working `GET` and confirmed admin scope (3.2/3.3 succeeded) — GitHub's documented behavior when default setup must be enabled via the web UI. **User action:** Settings → Code security → Code scanning → "Default setup" → Enable (languages: Actions, Python). The 4 stale alerts (already fixed in code at `9b20adf`) will auto-close on the first scan.
+- [x] 3.5 Pin the reusable workflow references in `.github/workflows/security.yml` (`cfdude/.github/...@main`, lines 13 & 19) to immutable commit SHAs (with a `# <ref>` comment), closing the mutable-ref supply-chain gap. **Done** — pinned to `6643615`.
 
 ## 4. CI/CD trust boundary (`ci-release-safety`)
 
