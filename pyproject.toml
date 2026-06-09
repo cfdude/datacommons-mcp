@@ -93,6 +93,8 @@ ignore = [
     "E402",   # Module level import not at top of file (existing code pattern)
     "B008",   # Do not perform function call in argument defaults (FastAPI uses this pattern)
     "UP007",  # Use X | Y for type annotations (prefer Optional for clarity)
+    "UP042",  # Use StrEnum (deferred to modularize-core: str,Enum->StrEnum changes
+              # serialization/str() behavior for enums backing tool Literal params)
     "RUF012", # Mutable class attributes (existing code pattern)
     "RUF013", # Implicit Optional (existing code pattern)
     "SIM108", # Use ternary operator (existing code pattern)
