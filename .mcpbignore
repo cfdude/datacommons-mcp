@@ -11,14 +11,12 @@
 # Tests
 **/tests/
 **/test_*.py
-**/evals/
 
 # Development files
 .git
 .gitignore
 notebooks/
 docs/
-SPRINT_*.md
 
 # NOTE: pyproject.toml and uv.lock are intentionally NOT ignored — the
 # extension ships them so uv can resolve/build the locked dependency

@@ -32,7 +32,6 @@ The server supports both standard MCP [transport protocols](https://modelcontext
 
 See [Basic usage](#basic-usage) below for how to use the server with Google-based clients over Stdio.
 
-For an end-to-end tutorial using a server and agent over HTTP in the cloud, see the sample Data Commons Colab notebook, [Try Data Commons MCP Tools with a Custom Agent](https://github.com/datacommonsorg/agent-toolkit/blob/main/notebooks/datacommons_mcp_tools_with_custom_agent.ipynb).
 
 ### Unsupported features
 
@@ -47,7 +46,6 @@ This section shows you how to run a local agent that kicks off the server in a s
 
 We provide specific instructions for the following agents:
 - [Gemini CLI](https://github.com/google-gemini/gemini-cli) -- best for playing with the server; requires minimal setup. See the [Quickstart](quickstart.md) for this option.
-- A sample basic agent based on the Google [Agent Development Kit](https://google.github.io/adk-docs/) and [Gemini Flash 2.5](https://deepmind.google/models/gemini/flash/) -- best for interacting with a sample ADK-based web agent; requires some additional setup. See below for this option.
 
 For other clients/agents, see the relevant documentation; you should be able to reuse the commands and arguments detailed below.
 
@@ -56,9 +54,7 @@ For other clients/agents, see the relevant documentation; you should be able to 
 For all instances:
 
 - A Data Commons API key. To obtain an API key, go to <https://apikeys.datacommons.org> and request a key for the `api.datacommons.org` domain.
-- For running the sample agent or the Colab notebook, a GCP project and a Google AI API key. For details on supported keys, see <https://google.github.io/adk-docs/get-started/quickstart/#set-up-the-model>.
-- For running the sample agent locally, or running the server locally in standalone mode, install `uv` for managing and installing Python packages; see the instructions at <https://docs.astral.sh/uv/getting-started/installation/>. 
-- For running the sample agent locally, install [Git](https://git-scm.com/).
+- For running the server locally in standalone mode, install `uv` for managing and installing Python packages; see the instructions at <https://docs.astral.sh/uv/getting-started/installation/>. 
 
 > **Important**: Additionally, for custom Data Commons instances:
 
@@ -79,7 +75,7 @@ If you're running a against a custom Data Commons instance, we recommend using a
 
 To set variables using a `.env` file:
 
-1. From Github, download the file [`.env.sample`](https://github.com/datacommonsorg/agent-toolkit/blob/main/packages/datacommons-mcp/.env.sample) to the desired directory. Or, if you plan to run the sample agent, clone the repo https://github.com/datacommonsorg/agent-toolkit/.
+1. From Github, download the file [`.env.sample`](https://github.com/datacommonsorg/agent-toolkit/blob/main/packages/datacommons-mcp/.env.sample) to the desired directory.
 
 1. From the directory where you saved the sample file, copy it to a new file called `.env`. For example:
    ```bash
@@ -92,55 +88,6 @@ To set variables using a `.env` file:
    - `CUSTOM_DC_URL`: Uncomment and set to the URL of your instance. 
 1. Optionally, set other variables.
 1. Save the file.
-
-### Use the sample agent
-
-We provide a basic agent for interacting with the MCP Server in [packages/datacommons-mcp/examples/sample_agents/basic_agent](https://github.com/datacommonsorg/agent-toolkit/tree/main/packages/datacommons-mcp/examples/sample_agents/basic_agent). To run the agent locally:
-
-1. If not already installed, install `uv` for managing and installing Python packages; see the instructions at <https://docs.astral.sh/uv/getting-started/installation/>. 
-1. From the desired directory, clone the `agent-toolkit` repo:
-   ```bash
-   git clone https://github.com/datacommonsorg/agent-toolkit.git
-   ```
-1. Set the following environment variables in your shell or startup script:
-   ```bash
-   export DC_API_KEY=<your Data Commons API key>
-   export GEMINI_API_KEY=<your Google AI API key>
-   ```
-1. Go to the root directory of the repo:
-   ```bash
-   cd agent-toolkit
-   ```
-1. Run the agent using one of the following methods.
-
-#### Web UI (recommended):
-
-1. Run the following command:
-   ```bash
-   uvx --from google-adk adk web ./packages/datacommons-mcp/examples/sample_agents/
-   ```
-1. Point your browser to the address and port displayed on the screen (e.g. `http://127.0.0.1:8000/`). The Agent Development Kit Dev UI is displayed. 
-1. From the **Type a message** box, type your query for Data Commons or select another action.
-
-#### Command line interface
-
-1. Run the following command:
-   ```bash
-   uvx --from google-adk adk run ./packages/datacommons-mcp/examples/sample_agents/basic_agent
-   ```
-1. Enter your queries at the `User` prompt in the terminal.
-
-## Develop your own ADK agent
-
-We provide two sample Google Agent Development Kit-based agents you can use as inspiration for building your own agent:
-
-- [Try Data Commons MCP Tools with a Custom Agent](https://github.com/datacommonsorg/agent-toolkit/blob/main/notebooks/datacommons_mcp_tools_with_custom_agent.ipynb) is a Google Colab tutorial that shows how to build an ADK Python agent step by step. 
-- The sample [basic agent](https://github.com/datacommonsorg/agent-toolkit/tree/main/packages/datacommons-mcp/examples/sample_agents/basic_agent) is a simple Python ADK agent you can use to develop locally. At the most basic level, you can modify its configuration, including:
-   - The [AGENT_INSTRUCTIONS](https://github.com/datacommonsorg/agent-toolkit/blob/main/packages/datacommons-mcp/examples/sample_agents/basic_agent/instructions.py)
-   - The [AGENT_MODEL](https://github.com/datacommonsorg/agent-toolkit/blob/main/packages/datacommons-mcp/examples/sample_agents/basic_agent/agent.py#L23)
-   - The transport layer protocol: see [Connect to a remote server](#sample-agent) for details.
-
-   To run the custom code, see [Use the sample agent](#use-the-sample-agent) above.
 
 ### Test with MCP Inspector
 
@@ -177,7 +124,7 @@ The server is addressable with the endpoint `mcp`. For example, `http://my-mcp-s
 
 ### Connect to an already-running server from a remote client
 
-Below we provide instructions for Gemini CLI and a sample ADK agent. If you're using a different client, consult its documentation to determine how to specify an HTTP URL.
+Below we provide instructions for Gemini CLI. If you're using a different client, consult its documentation to determine how to specify an HTTP URL.
 
 #### Gemini CLI
 
@@ -194,26 +141,6 @@ To configure Gemini CLI to connect to a remote Data Commons server over HTTP, re
   }
 }
 ```
-#### Sample agent
-
-To configure the sample agent to connect to a remote Data Commons MCP server over HTTP, you need to modify the code in [`basic_agent/agent.py`](https://github.com/datacommonsorg/agent-toolkit/blob/main/packages/datacommons-mcp/examples/sample_agents/basic_agent/agent.py).  Set import modules and agent initialization parameters as follows:
-
-```python
-...
-from google.adk.tools.mcp_tool.mcp_toolset import (
-   MCPToolset,
-   StreamableHTTPConnectionParams
-)
-...
-   LlmAgent(...
-      tools=[McpToolset(
-         connection_params=StreamableHTTPConnectionParams(
-            url=f"http://<host>:<port>/mcp"
-         )
-      ],
-   )
-```
-Run the agent as described in [Use the sample agent](#use-the-sample-agent) above.
 
 ## Feedback
 We use [Google Issue Tracker](https://issuetracker.google.com/) to track bugs and feature requests. All tickets are publicly viewable.
