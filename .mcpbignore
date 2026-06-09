@@ -16,11 +16,13 @@
 # Development files
 .git
 .gitignore
-pyproject.toml
-uv.lock
 notebooks/
 docs/
 SPRINT_*.md
+
+# NOTE: pyproject.toml and uv.lock are intentionally NOT ignored — the
+# extension ships them so uv can resolve/build the locked dependency
+# environment at runtime (see run_server.sh / build-extension.sh).
 
 # IDE
 .vscode
