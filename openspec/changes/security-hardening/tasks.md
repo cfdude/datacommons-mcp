@@ -23,9 +23,9 @@
 
 ## 4. CI/CD trust boundary (`ci-release-safety`)
 
-- [ ] 4.1 Delete `.github/workflows/evals.yaml` (removes the `pull_request_target` + untrusted-checkout secret-exfiltration footgun).
-- [ ] 4.2 Delete the `evals-and-secrets` GitHub Environment via `gh api -X DELETE repos/cfdude/datacommons-mcp/environments/evals-and-secrets` (or documented manual fallback); confirm no workflow references it.
-- [ ] 4.3 Add an in-workflow lint+test gate job to `.github/workflows/build-and-publish-datacommons-mcp.yaml` and make the build/publish job `needs:` it, so a failing lint/test blocks publish.
+- [x] 4.1 Delete `.github/workflows/evals.yaml` (removes the `pull_request_target` + untrusted-checkout secret-exfiltration footgun).
+- [x] 4.2 Delete the `evals-and-secrets` GitHub Environment via `gh api -X DELETE repos/cfdude/datacommons-mcp/environments/evals-and-secrets` (or documented manual fallback); confirm no workflow references it.
+- [x] 4.3 Add an in-workflow lint+test gate job to `.github/workflows/build-and-publish-datacommons-mcp.yaml` and make the build/publish job `needs:` it, so a failing lint/test blocks publish.
 
 ## 5. Verification & integration
 
