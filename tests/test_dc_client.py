@@ -29,6 +29,7 @@ import requests
 from datacommons_client.client import DataCommonsClient
 
 from datacommons_mcp.clients import SURFACE_HEADER_VALUE, DCClient, create_dc_client
+from datacommons_mcp.config import BaseDCSettings, CustomDCSettings
 from datacommons_mcp.data_models.enums import SearchScope
 from datacommons_mcp.data_models.observations import (
     ObservationDateType,
@@ -41,7 +42,6 @@ from datacommons_mcp.data_models.search import (
     SearchTopic,
     SearchVariable,
 )
-from datacommons_mcp.data_models.settings import BaseDCSettings, CustomDCSettings
 
 
 @pytest.fixture

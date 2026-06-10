@@ -26,12 +26,10 @@ from datacommons_mcp.data_models.observations import (
     ObservationToolResponse,
     PlaceObservation,
 )
-from datacommons_mcp.data_models.settings import OutputSettings
 from datacommons_mcp.utils.output_handler import (
     OutputHandler,
     OutputHandlerConfig,
     OutputHandlerMode,
-    create_output_handler,
 )
 
 
@@ -98,25 +96,6 @@ class TestOutputHandlerConfig:
         assert config.multi_file is False
         assert config.include_lineage is True
         assert config.max_pages == 100
-
-    def test_from_settings(self, temp_storage):
-        """Test creating config from settings."""
-        settings = OutputSettings(
-            storage_dir=temp_storage,
-            output_format="json",
-            multi_file_export=True,
-            include_lineage=False,
-            max_pages=50,
-        )
-
-        config = OutputHandlerConfig.from_settings(settings)
-
-        assert config.output_format == "json"
-        assert config.multi_file is True
-        assert config.include_lineage is False
-        assert config.max_pages == 50
-        # Use resolve() to handle macOS /var -> /private/var symlink
-        assert config.storage_dir.resolve() == temp_storage.resolve()
 
 
 class TestOutputHandlerInit:
@@ -315,31 +294,6 @@ class TestOutputHandlerMultiFile:
         assert result["multi_file"] is True
 
 
-class TestCreateOutputHandler:
-    """Tests for the factory function."""
-
-    def test_create_output_handler_default_settings(self, mock_client):
-        """Test creating handler with default settings."""
-        handler = create_output_handler(mock_client)
-
-        assert handler is not None
-        assert handler.client == mock_client
-        assert handler.config.output_mode == OutputHandlerMode.AUTO
-
-    def test_create_output_handler_custom_settings(self, mock_client, temp_storage):
-        """Test creating handler with custom settings."""
-        settings = OutputSettings(
-            storage_dir=temp_storage,
-            output_format="json",
-            max_pages=25,
-        )
-
-        handler = create_output_handler(mock_client, settings)
-
-        assert handler.config.output_format == "json"
-        assert handler.config.max_pages == 25
-
-
 class TestOutputHandlerEdgeCases:
     """Tests for edge cases and error handling."""
 
@@ -461,15 +415,6 @@ class TestScreenRowThreshold:
         """Test default screen_row_threshold value."""
         config = OutputHandlerConfig()
         assert config.screen_row_threshold == 500
-
-    def test_config_from_settings_includes_threshold(self, temp_storage):
-        """Test that from_settings reads screen_row_threshold."""
-        settings = OutputSettings(
-            storage_dir=temp_storage,
-            screen_row_threshold=100,
-        )
-        config = OutputHandlerConfig.from_settings(settings)
-        assert config.screen_row_threshold == 100
 
     def test_count_response_rows(self, mock_client, temp_storage, large_response):
         """Test that _count_response_rows counts correctly."""

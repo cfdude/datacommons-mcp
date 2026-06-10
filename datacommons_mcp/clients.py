@@ -35,6 +35,11 @@ from datacommons_mcp.data_models.observations import (
 
 # Type for raw paginated API response
 PaginatedApiResponse = tuple[ObservationApiResponse, str | None]  # (response, next_token)
+from datacommons_mcp.config import (
+    BaseDCSettings,
+    CustomDCSettings,
+    DCSettings,
+)
 from datacommons_mcp.data_models.search import (
     NodeInfo,
     SearchIndicator,
@@ -43,11 +48,6 @@ from datacommons_mcp.data_models.search import (
     SearchTask,
     SearchTopic,
     SearchVariable,
-)
-from datacommons_mcp.data_models.settings import (
-    BaseDCSettings,
-    CustomDCSettings,
-    DCSettings,
 )
 from datacommons_mcp.topics import TopicStore, create_topic_store, read_topic_caches
 from datacommons_mcp.version import __version__

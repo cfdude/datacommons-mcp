@@ -28,8 +28,7 @@ from fastmcp import FastMCP
 from fastmcp.server.lifespan import lifespan
 
 from ..clients import create_dc_client
-from ..config import load_config
-from ..data_models.settings import BaseDCSettings, CustomDCSettings, DCSettingsSelector
+from ..config import get_dc_settings, load_config
 from ..utils.output_handler import OutputHandler, OutputHandlerConfig
 from ..utils.pagination_handler import PaginationHandler
 from ..utils.path_resolver import PathResolver
@@ -89,14 +88,6 @@ def _load_env_with_fallback() -> None:
     load_dotenv()
 
 
-def _get_dc_settings():
-    """Get Data Commons settings from environment."""
-    settings_selector = DCSettingsSelector()
-    if settings_selector.dc_type == "custom":
-        return CustomDCSettings()
-    return BaseDCSettings()
-
-
 @lifespan
 async def dc_lifespan(server: FastMCP):
     """Initialize shared Data Commons resources for all tools.
@@ -110,7 +101,7 @@ async def dc_lifespan(server: FastMCP):
     """
     _load_env_with_fallback()
     config = load_config()
-    dc_settings = _get_dc_settings()
+    dc_settings = get_dc_settings()
 
     logger.info("Initializing Data Commons client...")
     logger.info("DC type: %s", config.dc_type)

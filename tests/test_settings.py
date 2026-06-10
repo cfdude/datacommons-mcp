@@ -20,9 +20,8 @@ from unittest.mock import patch
 
 import pytest
 
+from datacommons_mcp.config import BaseDCSettings, CustomDCSettings, get_dc_settings
 from datacommons_mcp.data_models.enums import SearchScope
-from datacommons_mcp.data_models.settings import BaseDCSettings, CustomDCSettings
-from datacommons_mcp.settings import get_dc_settings
 
 
 @pytest.fixture

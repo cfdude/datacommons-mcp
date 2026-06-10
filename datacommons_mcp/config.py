@@ -12,20 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Consolidated configuration module for Data Commons MCP server.
+Centralized configuration for the Data Commons MCP server.
 
-This module provides a flattened, centralized configuration following
-FastMCP 3.0.0b1 patterns with backward-compatible accessors.
+This is the single source of truth for configuration. It holds two concerns:
+
+- ``AppConfig`` — output/storage/pagination settings consumed by the
+  OutputHandler and PaginationHandler.
+- The Data Commons connection settings as a base/custom discriminated union
+  (``BaseDCSettings`` / ``CustomDCSettings``), selected by ``get_dc_settings()``
+  and consumed by ``create_dc_client``.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings as BaseModel
+from pydantic import Field, field_validator, model_validator
+from pydantic_settings import BaseSettings
 
 from .data_models.enums import SearchScope
 
@@ -35,94 +39,36 @@ def _default_storage_dir() -> Path:
     return Path.home() / "Documents" / "datacommons-data"
 
 
-class AppConfig(BaseModel):
-    """Centralized application configuration for Data Commons MCP server.
+class AppConfig(BaseSettings):
+    """Output/storage/pagination configuration for the Data Commons MCP server.
 
-    All settings are flattened for simplicity, with backward-compatible
-    property accessors for nested access patterns.
+    DC connection settings (api key, search root, indices, custom-DC URL, etc.)
+    live in the ``BaseDCSettings`` / ``CustomDCSettings`` union below, not here.
     """
 
     model_config = {"env_file": ".env", "extra": "ignore", "populate_by_name": True}
 
-    # Required: API key
+    # Required: API key (fail-fast if absent)
     dc_api_key: str = Field(
         alias="DC_API_KEY",
         description="API key for Data Commons",
     )
 
-    # DC instance type
+    # DC instance type (used for logging / selection)
     dc_type: Literal["base", "custom"] = Field(
         default="base",
         alias="DC_TYPE",
         description="Type of Data Commons instance (base or custom)",
     )
 
-    # API configuration
-    dc_api_root: str | None = Field(
-        default=None,
-        alias="DC_API_ROOT",
-        description="API root for local API instance (base DC only)",
-    )
-    dc_search_root: str = Field(
-        default="https://datacommons.org",
-        alias="DC_SEARCH_ROOT",
-        description="Search base URL for base DC",
-    )
-    dc_base_index: str = Field(
-        default="base_uae_mem",
-        alias="DC_BASE_INDEX",
-        description="Search index for base DC",
-    )
-
-    # Custom DC specific
-    custom_dc_url: str | None = Field(
-        default=None,
-        alias="CUSTOM_DC_URL",
-        description="Base URL for custom Data Commons instance",
-    )
-    dc_custom_index: str = Field(
-        default="user_all_minilm_mem",
-        alias="DC_CUSTOM_INDEX",
-        description="Search index for custom DC",
-    )
-    dc_search_scope: SearchScope = Field(
-        default=SearchScope.BASE_AND_CUSTOM,
-        alias="DC_SEARCH_SCOPE",
-        description="Search scope for custom DC queries",
-    )
-
-    # Topic configuration
-    dc_topic_cache_paths: list[str] | None = Field(
-        default=None,
-        alias="DC_TOPIC_CACHE_PATHS",
-        description="Paths to topic cache files",
-    )
-    dc_root_topic_dcids: list[str] | None = Field(
-        default=None,
-        alias="DC_ROOT_TOPIC_DCIDS",
-        description="List of root topic DCIDs (custom DC)",
-    )
-    dc_base_root_topic_dcids: list[str] = Field(
-        default=["dc/topic/Root", "dc/topic/sdg"],
-        alias="DC_BASE_ROOT_TOPIC_DCIDS",
-        description="List of root topic DCIDs for base DC",
-    )
-
-    # Feature toggles
-    dc_use_search_indicators: bool = Field(
-        default=True,
-        alias="DC_USE_SEARCH_INDICATORS_ENDPOINT",
-        description="Use search-indicators vs search-vector endpoint",
-    )
-
-    # Storage configuration (flattened)
+    # Storage configuration
     storage_directory: str = Field(
         default_factory=lambda: str(_default_storage_dir()),
         alias="DC_STORAGE_DIR",
         description="Directory for storing exported data files",
     )
 
-    # Output configuration (flattened)
+    # Output configuration
     output_format: Literal["csv", "json"] = Field(
         default="csv",
         alias="DC_OUTPUT_FORMAT",
@@ -153,19 +99,6 @@ class AppConfig(BaseModel):
         description="Enable multi-file export with companion CSVs",
     )
 
-    # Token estimation (from mcp-fred pattern)
-    safe_token_limit: int = Field(
-        default=50_000,
-        alias="DC_SAFE_TOKEN_LIMIT",
-        description="Token limit for safe inline responses",
-    )
-    assume_context_used: float = Field(
-        default=0.75,
-        alias="DC_ASSUME_CONTEXT_USED",
-        description="Assumed fraction of context already used",
-    )
-
-    # Validators
     @field_validator("storage_directory", mode="before")
     @classmethod
     def parse_storage_dir(cls, v: Any) -> str:
@@ -178,62 +111,9 @@ class AppConfig(BaseModel):
             return str(Path(v).expanduser().resolve())
         raise ValueError(f"Invalid storage_directory type: {type(v)}")
 
-    @field_validator("dc_topic_cache_paths", "dc_root_topic_dcids", mode="before")
-    @classmethod
-    def parse_list_field(cls, v: Any) -> list[str] | None:
-        """Parse comma-separated string or list into list of strings."""
-        if isinstance(v, list):
-            return [s for s in (str(item).strip() for item in v) if s]
-        if not isinstance(v, str) or not v.strip():
-            return None
-        return [s for s in (part.strip() for part in v.split(",")) if s]
-
-    # Backward-compatible property accessors
-    @property
-    def storage(self) -> _CompatStorage:
-        """Backward-compatible storage settings accessor."""
-        return _CompatStorage(directory=self.storage_directory)
-
-    @property
-    def output(self) -> _CompatOutput:
-        """Backward-compatible output settings accessor."""
-        return _CompatOutput(
-            format=self.output_format,
-            screen_row_threshold=self.screen_row_threshold,
-            safe_token_limit=self.safe_token_limit,
-            assume_context_used=self.assume_context_used,
-            include_lineage=self.include_lineage,
-            multi_file_export=self.multi_file_export,
-            max_pages=self.max_pages,
-        )
-
-
-@dataclass
-class _CompatStorage:
-    """Backward-compatible storage settings."""
-
-    directory: str
-
-    @property
-    def path(self) -> Path:
-        return Path(self.directory)
-
-
-@dataclass
-class _CompatOutput:
-    """Backward-compatible output settings."""
-
-    format: str
-    screen_row_threshold: int
-    safe_token_limit: int
-    assume_context_used: float
-    include_lineage: bool
-    multi_file_export: bool
-    max_pages: int
-
 
 def load_config() -> AppConfig:
-    """Load configuration from environment variables.
+    """Load output/storage configuration from environment variables.
 
     Returns:
         AppConfig instance with settings from environment.
@@ -244,4 +124,191 @@ def load_config() -> AppConfig:
     return AppConfig()  # type: ignore[call-arg]
 
 
-__all__ = ["AppConfig", "load_config"]
+#
+# Data Commons connection settings (base/custom discriminated union)
+#
+
+
+def _parse_list_like_parameter(v: Any) -> list[str] | None:
+    """Parse a comma-separated string or a list into a list of strings."""
+    if isinstance(v, list):
+        return [s for s in (str(item).strip() for item in v) if s]
+    if not isinstance(v, str) or not v.strip():
+        return None
+    # Split by comma and strip whitespace from each item, filtering out empty strings
+    return [s for s in (part.strip() for part in v.split(",")) if s]
+
+
+_MODEL_CONFIG = {"env_file": ".env", "extra": "ignore"}
+
+
+class DCSettingsSelector(BaseSettings):
+    """Settings selector to determine DC type from environment."""
+
+    model_config = _MODEL_CONFIG
+
+    dc_type: Literal["base", "custom"] = Field(
+        default="base", alias="DC_TYPE", description="Type of Data Commons"
+    )
+
+
+class DCSettings(BaseSettings):
+    """Settings for base Data Commons instance."""
+
+    model_config = _MODEL_CONFIG
+
+    api_key: str = Field(alias="DC_API_KEY", description="API key for Data Commons")
+
+    use_search_indicators_endpoint: bool = Field(
+        default=True,
+        alias="DC_USE_SEARCH_INDICATORS_ENDPOINT",
+        description=("Toggles between search-indicators and search-vector endpoint."),
+    )
+
+
+class BaseDCSettings(DCSettings):
+    """Settings for base Data Commons instance."""
+
+    def __init__(self, **kwargs: dict[str, Any]) -> None:
+        super().__init__(**kwargs)
+
+    dc_type: Literal["base"] = Field(
+        default="base",
+        alias="DC_TYPE",
+        description="Type of Data Commons (must be 'base')",
+    )
+    search_root: str = Field(
+        default="https://datacommons.org",
+        alias="DC_SEARCH_ROOT",
+        description="Search base URL for base DC",
+    )
+    base_index: str = Field(
+        default="base_uae_mem",
+        alias="DC_BASE_INDEX",
+        description="Search index for base DC",
+    )
+    topic_cache_paths: list[str] | None = Field(
+        default=None,
+        alias="DC_TOPIC_CACHE_PATHS",
+        description="Paths to topic cache files",
+    )
+
+    base_root_topic_dcids: list[str] | None = Field(
+        default=["dc/topic/Root", "dc/topic/sdg"],
+        alias="DC_BASE_ROOT_TOPIC_DCIDS",
+        description="List of root topic DCIDs for base DC",
+    )
+    api_root: str | None = Field(
+        default=None,
+        alias="DC_API_ROOT",
+        description="API root for local api instance",
+    )
+
+    @field_validator("topic_cache_paths", "base_root_topic_dcids", mode="before")
+    @classmethod
+    def parse_list_like_parameter(cls, v: str) -> list[str] | None:
+        return _parse_list_like_parameter(v)
+
+
+class CustomDCSettings(DCSettings):
+    """Settings for custom Data Commons instance."""
+
+    model_config = _MODEL_CONFIG
+
+    def __init__(self, **kwargs: dict[str, Any]) -> None:
+        super().__init__(**kwargs)
+
+    dc_type: Literal["custom"] = Field(
+        default="custom",
+        alias="DC_TYPE",
+        description="Type of Data Commons (must be 'custom')",
+    )
+    custom_dc_url: str = Field(
+        alias="CUSTOM_DC_URL", description="Base URL for custom Data Commons instance"
+    )
+    api_base_url: str | None = Field(
+        default=None,
+        alias="DC_API_BASE_URL",
+        description="API base URL (computed from base_url if not provided)",
+    )
+    search_scope: SearchScope = Field(
+        default=SearchScope.BASE_AND_CUSTOM,
+        alias="DC_SEARCH_SCOPE",
+        description="Search scope for queries",
+    )
+    base_index: str = Field(
+        default="medium_ft",
+        alias="DC_BASE_INDEX",
+        description="Search index for base DC",
+    )
+    custom_index: str = Field(
+        default="user_all_minilm_mem",
+        alias="DC_CUSTOM_INDEX",
+        description="Search index for custom DC",
+    )
+    root_topic_dcids: list[str] | None = Field(
+        default=None,
+        alias="DC_ROOT_TOPIC_DCIDS",
+        description="List of root topic DCIDs",
+    )
+    base_root_topic_dcids: list[str] | None = Field(
+        default=["dc/topic/Root", "dc/topic/sdg"],
+        alias="DC_BASE_ROOT_TOPIC_DCIDS",
+        description="List of root topic DCIDs for base DC",
+    )
+    topic_cache_paths: list[str] | None = Field(
+        default=None,
+        alias="DC_TOPIC_CACHE_PATHS",
+        description="Paths to topic cache files (unlikely to be used but could be useful for local development)",
+    )
+    # TODO (@jm-rivera): Remove once new endpoint is live.
+    place_like_constraints: list[str] | None = Field(
+        default=None,
+        alias="PLACE_LIKE_CONSTRAINTS",
+        description="List of place-like constraintProperties",
+    )
+
+    @field_validator(
+        "root_topic_dcids",
+        "base_root_topic_dcids",
+        "place_like_constraints",
+        "topic_cache_paths",
+        mode="before",
+    )
+    @classmethod
+    def parse_list_like_parameter(cls, v: str) -> list[str] | None:
+        return _parse_list_like_parameter(v)
+
+    @model_validator(mode="after")
+    def compute_api_base_url(self) -> CustomDCSettings:
+        """Compute api_base_url from custom_dc_url if not provided."""
+        if self.api_base_url is None:
+            self.api_base_url = self.custom_dc_url.rstrip("/") + "/core/api/v2/"
+        return self
+
+
+# Union type for both settings
+DCSettings = BaseDCSettings | CustomDCSettings
+
+
+def get_dc_settings() -> DCSettings:
+    """Get Data Commons connection settings from environment.
+
+    Determines the DC type via ``DCSettingsSelector`` and returns the matching
+    base/custom settings model.
+    """
+    selector = DCSettingsSelector()
+    if selector.dc_type == "custom":
+        return CustomDCSettings()
+    return BaseDCSettings()
+
+
+__all__ = [
+    "AppConfig",
+    "BaseDCSettings",
+    "CustomDCSettings",
+    "DCSettings",
+    "DCSettingsSelector",
+    "get_dc_settings",
+    "load_config",
+]
