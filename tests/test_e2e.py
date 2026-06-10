@@ -51,9 +51,8 @@ class TestLiveAPIObservations:
     async def test_single_place_returns_screen(self, temp_output_dir):
         """Single place query should return data to screen."""
         from datacommons_mcp.clients import create_dc_client
-        from datacommons_mcp.data_models.settings import get_output_settings
+        from datacommons_mcp.config import get_dc_settings
         from datacommons_mcp.services import get_observations_paginated
-        from datacommons_mcp.settings import get_dc_settings
         from datacommons_mcp.utils.output_handler import (
             OutputHandler,
             OutputHandlerConfig,
@@ -72,8 +71,7 @@ class TestLiveAPIObservations:
         )
 
         # Create output handler
-        output_settings = get_output_settings()
-        config = OutputHandlerConfig.from_settings(output_settings)
+        config = OutputHandlerConfig()
         config.storage_dir = temp_output_dir
         handler = OutputHandler(client, config)
 
@@ -96,9 +94,8 @@ class TestLiveAPIObservations:
     async def test_small_child_places_may_paginate(self, temp_output_dir):
         """Child places query may paginate depending on dataset size."""
         from datacommons_mcp.clients import create_dc_client
-        from datacommons_mcp.data_models.settings import get_output_settings
+        from datacommons_mcp.config import get_dc_settings
         from datacommons_mcp.services import get_observations_paginated
-        from datacommons_mcp.settings import get_dc_settings
         from datacommons_mcp.utils.output_handler import (
             OutputHandler,
             OutputHandlerConfig,
@@ -118,8 +115,7 @@ class TestLiveAPIObservations:
         )
 
         # Create output handler
-        output_settings = get_output_settings()
-        config = OutputHandlerConfig.from_settings(output_settings)
+        config = OutputHandlerConfig()
         config.storage_dir = temp_output_dir
         handler = OutputHandler(client, config)
 
@@ -143,9 +139,8 @@ class TestLiveAPIObservations:
     async def test_force_file_creates_csv(self, temp_output_dir):
         """Forced file mode should always create a CSV file."""
         from datacommons_mcp.clients import create_dc_client
-        from datacommons_mcp.data_models.settings import get_output_settings
+        from datacommons_mcp.config import get_dc_settings
         from datacommons_mcp.services import get_observations_paginated
-        from datacommons_mcp.settings import get_dc_settings
         from datacommons_mcp.utils.output_handler import (
             OutputHandler,
             OutputHandlerConfig,
@@ -164,8 +159,7 @@ class TestLiveAPIObservations:
         )
 
         # Create output handler with file mode
-        output_settings = get_output_settings()
-        config = OutputHandlerConfig.from_settings(output_settings)
+        config = OutputHandlerConfig()
         config.storage_dir = temp_output_dir
         handler = OutputHandler(client, config)
 
@@ -200,9 +194,8 @@ class TestLiveAPILargeDataset:
         This test is marked slow and should only be run explicitly.
         """
         from datacommons_mcp.clients import create_dc_client
-        from datacommons_mcp.data_models.settings import get_output_settings
+        from datacommons_mcp.config import get_dc_settings
         from datacommons_mcp.services import get_observations_paginated
-        from datacommons_mcp.settings import get_dc_settings
         from datacommons_mcp.utils.output_handler import (
             OutputHandler,
             OutputHandlerConfig,
@@ -222,8 +215,7 @@ class TestLiveAPILargeDataset:
         )
 
         # Create output handler
-        output_settings = get_output_settings()
-        config = OutputHandlerConfig.from_settings(output_settings)
+        config = OutputHandlerConfig()
         config.storage_dir = temp_output_dir
         handler = OutputHandler(client, config)
 

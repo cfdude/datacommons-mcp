@@ -26,7 +26,6 @@ from .output_handler import (
     OutputHandler,
     OutputHandlerConfig,
     OutputHandlerMode,
-    create_output_handler,
 )
 from .pagination_handler import OutputMode, PaginationHandler, PaginationResult
 from .path_resolver import FileCategory, PathResolver, PathSecurityError
@@ -49,7 +48,6 @@ __all__ = [
     "SplitStrategy",
     "StreamStats",
     "create_multi_file_exporter",
-    "create_output_handler",
     "filter_by_date",
     "flatten_response_to_rows",
 ]

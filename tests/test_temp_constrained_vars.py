@@ -7,8 +7,7 @@ from datacommons_client.client import DataCommonsClient
 
 from datacommons_mcp._constrained_vars import _merge_dicts
 from datacommons_mcp.clients import DCClient, create_dc_client
-from datacommons_mcp.data_models.settings import CustomDCSettings
-from datacommons_mcp.settings import get_dc_settings
+from datacommons_mcp.config import CustomDCSettings, get_dc_settings
 
 
 @pytest.fixture

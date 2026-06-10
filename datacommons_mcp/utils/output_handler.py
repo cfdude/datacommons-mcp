@@ -27,7 +27,6 @@ from datacommons_mcp.data_models.observations import (
     ObservationRequest,
     ObservationToolResponse,
 )
-from datacommons_mcp.data_models.settings import OutputSettings, get_output_settings
 from datacommons_mcp.utils.pagination_handler import (
     OutputMode,
     PaginationHandler,
@@ -58,22 +57,6 @@ class OutputHandlerConfig:
     max_pages: int = 100
     storage_dir: Path | None = None
     screen_row_threshold: int = 500
-
-    @classmethod
-    def from_settings(cls, settings: OutputSettings | None = None) -> "OutputHandlerConfig":
-        """Create configuration from settings."""
-        if settings is None:
-            settings = get_output_settings()
-
-        return cls(
-            output_mode=OutputHandlerMode.AUTO,
-            output_format=settings.output_format,
-            multi_file=settings.multi_file_export,
-            include_lineage=settings.include_lineage,
-            max_pages=settings.max_pages,
-            storage_dir=settings.storage_dir,
-            screen_row_threshold=settings.screen_row_threshold,
-        )
 
 
 class OutputHandler:
@@ -109,7 +92,7 @@ class OutputHandler:
             config: Optional configuration. Uses settings if not provided.
         """
         self.client = client
-        self.config = config or OutputHandlerConfig.from_settings()
+        self.config = config or OutputHandlerConfig()
 
         # Initialize path resolver
         # Use configured storage_dir or default to ~/Documents/datacommons-data
@@ -260,21 +243,3 @@ class OutputHandler:
             # Companion files will be added by the multi-file exporter
 
         return response_dict
-
-
-def create_output_handler(
-    client: "DCClient",
-    settings: OutputSettings | None = None,
-) -> OutputHandler:
-    """
-    Factory function to create an OutputHandler.
-
-    Args:
-        client: DCClient for API calls.
-        settings: Optional OutputSettings. Uses environment if not provided.
-
-    Returns:
-        Configured OutputHandler instance.
-    """
-    config = OutputHandlerConfig.from_settings(settings)
-    return OutputHandler(client, config)
