@@ -29,10 +29,10 @@ from datacommons_mcp.exceptions import (
     InvalidDateRangeError,
 )
 from datacommons_mcp.services import (
-    _validate_and_build_request,
     get_observations,
     search_indicators,
 )
+from datacommons_mcp.services.observations import _validate_and_build_request
 
 
 @pytest.mark.asyncio
