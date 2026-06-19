@@ -23,7 +23,7 @@ def mocked_datacommons_client():
     in a test using this fixture will have its `self.dc` attribute set to
     this mock instance.
     """
-    with patch("datacommons_mcp.clients.DataCommonsClient") as mock_constructor:
+    with patch("datacommons_mcp.clients.factory.DataCommonsClient") as mock_constructor:
         mock_instance = Mock(spec=DataCommonsClient)
         # Manually add the client endpoints which aren't picked up by spec
         mock_instance.observation = Mock()
@@ -123,7 +123,7 @@ def test_get_topic_places_with_data_includes_place_like_store(
 
 
 @patch("datacommons_mcp.clients.DCClient._compute_place_like_statvar_store")
-@patch("datacommons_mcp.clients.DataCommonsClient")
+@patch("datacommons_mcp.clients.factory.DataCommonsClient")
 def test_create_custom_client_passes_place_like_constraints(
     mock_dc_client,
     mock_compute_store,
