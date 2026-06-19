@@ -1,14 +1,14 @@
 {
   "version": 1,
-  "active": "split-clients-module",
+  "active": "structured-tool-output",
   "epics": [
     {
-      "id": "split-clients-module",
-      "title": "Split the clients.py god module into a clients/ package",
+      "id": "structured-tool-output",
+      "title": "structured-tool-output",
       "priority": "P1",
       "status": "active",
       "role": "epic",
-      "lane": "superpowers",
+      "lane": "openspec",
       "links": [],
       "reconcileNeeded": false
     }

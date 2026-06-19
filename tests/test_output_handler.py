@@ -137,9 +137,9 @@ class TestOutputHandlerScreenMode:
             output_mode=OutputHandlerMode.AUTO,
         )
 
-        assert result["output_mode"] == "screen"
-        assert "data" in result
-        assert result["data"]["variable"]["dcid"] == "Count_Person"
+        assert result.output_mode == "screen"
+        assert result.data is not None
+        assert result.data.variable.dcid == "Count_Person"
 
     @pytest.mark.asyncio
     async def test_forced_screen_mode_returns_screen(
@@ -157,8 +157,8 @@ class TestOutputHandlerScreenMode:
             output_mode=OutputHandlerMode.SCREEN,
         )
 
-        assert result["output_mode"] == "screen"
-        assert "data" in result
+        assert result.output_mode == "screen"
+        assert result.data is not None
 
     @pytest.mark.asyncio
     async def test_screen_mode_string_parameter(
@@ -175,7 +175,7 @@ class TestOutputHandlerScreenMode:
             output_mode="screen",  # String instead of enum
         )
 
-        assert result["output_mode"] == "screen"
+        assert result.output_mode == "screen"
 
 
 class TestOutputHandlerFileMode:
@@ -201,9 +201,9 @@ class TestOutputHandlerFileMode:
             output_mode=OutputHandlerMode.AUTO,
         )
 
-        assert result["output_mode"] == "file"
-        assert "file_path" in result
-        assert Path(result["file_path"]).exists()
+        assert result.output_mode == "file"
+        assert result.file_path is not None
+        assert Path(result.file_path).exists()
 
     @pytest.mark.asyncio
     async def test_forced_file_mode_creates_file(
@@ -220,10 +220,10 @@ class TestOutputHandlerFileMode:
             output_mode=OutputHandlerMode.FILE,
         )
 
-        assert result["output_mode"] == "file"
-        assert "file_path" in result
-        assert "rows_written" in result
-        assert "pages_fetched" in result
+        assert result.output_mode == "file"
+        assert result.file_path is not None
+        assert result.rows_written is not None
+        assert result.pages_fetched is not None
 
     @pytest.mark.asyncio
     async def test_file_mode_csv_format(
@@ -241,11 +241,11 @@ class TestOutputHandlerFileMode:
             output_format="csv",
         )
 
-        assert result["output_mode"] == "file"
-        assert result["format"] == "csv"
+        assert result.output_mode == "file"
+        assert result.format == "csv"
 
         # Verify file content
-        file_path = Path(result["file_path"])
+        file_path = Path(result.file_path)
         assert file_path.exists()
         content = file_path.read_text()
         assert "place_dcid" in content
@@ -267,9 +267,9 @@ class TestOutputHandlerFileMode:
             output_mode=OutputHandlerMode.FILE,
         )
 
-        assert result["rows_written"] >= 1
-        assert result["pages_fetched"] >= 1
-        assert result["file_size_bytes"] > 0
+        assert result.rows_written >= 1
+        assert result.pages_fetched >= 1
+        assert result.file_size_bytes > 0
 
 
 class TestOutputHandlerMultiFile:
@@ -291,7 +291,7 @@ class TestOutputHandlerMultiFile:
             multi_file=True,
         )
 
-        assert result["multi_file"] is True
+        assert result.multi_file is True
 
 
 class TestOutputHandlerEdgeCases:
@@ -317,8 +317,8 @@ class TestOutputHandlerEdgeCases:
             output_mode=OutputHandlerMode.SCREEN,
         )
 
-        assert result["output_mode"] == "screen"
-        assert result["data"]["place_observations"] == []
+        assert result.output_mode == "screen"
+        assert result.data.place_observations == []
 
     @pytest.mark.asyncio
     async def test_empty_response_file_mode(self, mock_client, temp_storage, sample_request):
@@ -340,9 +340,9 @@ class TestOutputHandlerEdgeCases:
             output_mode=OutputHandlerMode.FILE,
         )
 
-        assert result["output_mode"] == "file"
+        assert result.output_mode == "file"
         # File should still be created even if empty
-        assert "file_path" in result
+        assert result.file_path is not None
 
     @pytest.mark.asyncio
     async def test_output_format_override(
@@ -363,7 +363,7 @@ class TestOutputHandlerEdgeCases:
             output_format="json",  # Override to JSON
         )
 
-        assert result["format"] == "json"
+        assert result.format == "json"
 
 
 class TestScreenRowThreshold:
@@ -458,9 +458,9 @@ class TestScreenRowThreshold:
             output_mode=OutputHandlerMode.AUTO,
         )
 
-        assert result["output_mode"] == "file"
-        assert "file_path" in result
-        assert Path(result["file_path"]).exists()
+        assert result.output_mode == "file"
+        assert result.file_path is not None
+        assert Path(result.file_path).exists()
 
     @pytest.mark.asyncio
     async def test_auto_mode_small_response_returns_screen(
@@ -480,8 +480,8 @@ class TestScreenRowThreshold:
             output_mode=OutputHandlerMode.AUTO,
         )
 
-        assert result["output_mode"] == "screen"
-        assert "data" in result
+        assert result.output_mode == "screen"
+        assert result.data is not None
 
     @pytest.mark.asyncio
     async def test_threshold_boundary_at_limit_returns_screen(
@@ -515,7 +515,7 @@ class TestScreenRowThreshold:
         )
 
         # At exactly threshold, should return screen (only > triggers file)
-        assert result["output_mode"] == "screen"
+        assert result.output_mode == "screen"
 
     @pytest.mark.asyncio
     async def test_threshold_boundary_over_limit_creates_file(
@@ -548,7 +548,7 @@ class TestScreenRowThreshold:
             output_mode=OutputHandlerMode.AUTO,
         )
 
-        assert result["output_mode"] == "file"
+        assert result.output_mode == "file"
 
     @pytest.mark.asyncio
     async def test_forced_screen_mode_ignores_threshold(
@@ -569,5 +569,5 @@ class TestScreenRowThreshold:
         )
 
         # Should return screen despite exceeding threshold
-        assert result["output_mode"] == "screen"
-        assert "data" in result
+        assert result.output_mode == "screen"
+        assert result.data is not None

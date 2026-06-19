@@ -41,7 +41,7 @@ async def search_indicators(
     include_topics: bool = True,
     maybe_bilateral: bool = False,
     ctx: Context = CurrentContext(),
-) -> dict:
+) -> SearchResponse:
     """
     **Purpose:**
     Search for topics and variables (collectively called "indicators") available in the Data Commons Knowledge Graph.
@@ -322,8 +322,9 @@ async def search_indicators(
             maybe_bilateral=maybe_bilateral,
         )
 
-        # Dump the Pydantic model to a dictionary
-        return response.model_dump(exclude_none=True)
+        # Return the typed model directly so FastMCP advertises a field-level
+        # output schema (structured output).
+        return response
 
 
 __all__ = ["search_indicators"]

@@ -94,9 +94,9 @@ class TestOutputHandlerIntegration:
             )
         )
 
-        assert result["output_mode"] == "screen"
-        assert "data" in result
-        assert result["data"]["variable"]["dcid"] == "Count_Person"
+        assert result.output_mode == "screen"
+        assert result.data is not None
+        assert result.data.variable.dcid == "Count_Person"
 
     def test_force_screen_mode_returns_directly(
         self, mock_client, sample_request, sample_response, temp_dir
@@ -116,8 +116,8 @@ class TestOutputHandlerIntegration:
             )
         )
 
-        assert result["output_mode"] == "screen"
-        assert "data" in result
+        assert result.output_mode == "screen"
+        assert result.data is not None
 
     def test_force_file_mode_creates_file(
         self, mock_client, sample_request, sample_response, temp_dir
@@ -140,11 +140,11 @@ class TestOutputHandlerIntegration:
             )
         )
 
-        assert result["output_mode"] == "file"
-        assert "file_path" in result
-        assert "rows_written" in result
-        assert "pages_fetched" in result
-        assert Path(result["file_path"]).exists()
+        assert result.output_mode == "file"
+        assert result.file_path is not None
+        assert result.rows_written is not None
+        assert result.pages_fetched is not None
+        assert Path(result.file_path).exists()
 
     def test_auto_mode_with_pagination_streams_to_file(
         self, mock_client, sample_request, sample_response, temp_dir
@@ -169,9 +169,9 @@ class TestOutputHandlerIntegration:
             )
         )
 
-        assert result["output_mode"] == "file"
-        assert "file_path" in result
-        assert Path(result["file_path"]).exists()
+        assert result.output_mode == "file"
+        assert result.file_path is not None
+        assert Path(result.file_path).exists()
         # Should have fetched the second page
         mock_client.fetch_obs_page.assert_called()
 
@@ -193,7 +193,7 @@ class TestOutputHandlerIntegration:
             )
         )
 
-        file_path = Path(result["file_path"])
+        file_path = Path(result.file_path)
         content = file_path.read_text()
 
         # Check for lineage header markers
@@ -253,7 +253,7 @@ class TestPaginationFlow:
 
         # Should have fetched max_pages - 1 additional pages (first page already processed)
         assert mock_client.fetch_obs_page.call_count <= 2  # max_pages - 1
-        assert result["output_mode"] == "file"
+        assert result.output_mode == "file"
 
 
 class TestProgressCallbacks:

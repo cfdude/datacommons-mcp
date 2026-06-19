@@ -25,10 +25,12 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from datacommons_mcp.data_models.observations import (
     ObservationRequest,
+    ObservationsFileResult,
+    ObservationsResult,
+    ObservationsScreenResult,
     ObservationToolResponse,
 )
 from datacommons_mcp.utils.pagination_handler import (
-    OutputMode,
     PaginationHandler,
 )
 from datacommons_mcp.utils.path_resolver import PathResolver
@@ -117,7 +119,7 @@ class OutputHandler:
         output_format: Literal["csv", "json"] | None = None,
         multi_file: bool | None = None,
         progress_callback: Any | None = None,
-    ) -> dict[str, Any]:
+    ) -> ObservationsResult:
         """
         Handle observation response based on output mode.
 
@@ -131,10 +133,10 @@ class OutputHandler:
             progress_callback: Optional callback for progress updates.
 
         Returns:
-            A standardized response dictionary with:
-            - output_mode: "screen" or "file"
-            - For screen mode: data (the full response)
-            - For file mode: file_path, rows_written, pages_fetched, etc.
+            An ``ObservationsResult`` (tagged on ``output_mode``):
+            - ``ObservationsScreenResult`` (screen): ``data`` holds the full response inline.
+            - ``ObservationsFileResult`` (file): ``file_path``, ``rows_written``,
+              ``pages_fetched``, ``file_size_bytes``, ``unique_places_count``, ``format``.
         """
         # Normalize output mode
         if isinstance(output_mode, str):
@@ -197,12 +199,9 @@ class OutputHandler:
         """
         return sum(len(place_obs.time_series) for place_obs in response.place_observations)
 
-    def _build_screen_response(self, response: ObservationToolResponse) -> dict[str, Any]:
-        """Build a standardized screen-mode response."""
-        return {
-            "output_mode": OutputMode.SCREEN.value,
-            "data": response.model_dump(exclude_none=True),
-        }
+    def _build_screen_response(self, response: ObservationToolResponse) -> ObservationsScreenResult:
+        """Build a typed screen-mode result with inline data."""
+        return ObservationsScreenResult(output_mode="screen", data=response)
 
     async def _handle_file_output(
         self,
@@ -213,7 +212,7 @@ class OutputHandler:
         output_format: Literal["csv", "json"],
         multi_file: bool,
         progress_callback: Any | None,
-    ) -> dict[str, Any]:
+    ) -> ObservationsFileResult:
         """Handle file output mode."""
 
         # Convert progress callback to the format expected by pagination handler
@@ -231,15 +230,22 @@ class OutputHandler:
             server_version=__version__,
         )
 
-        # Build response
-        response_dict = result.to_dict()
-
-        # Add format info
-        response_dict["format"] = output_format
-
-        # Handle multi-file export (to be implemented in DC-012)
-        if multi_file:
-            response_dict["multi_file"] = True
-            # Companion files will be added by the multi-file exporter
-
-        return response_dict
+        # Build the typed file result from the PaginationResult.
+        # (PaginationResult.to_dict() is retained for its own callers/tests.)
+        companion_files = (
+            {k: str(v) for k, v in result.companion_files.items()}
+            if result.companion_files
+            else None
+        )
+        return ObservationsFileResult(
+            output_mode="file",
+            file_path=str(result.file_path) if result.file_path else None,
+            rows_written=result.rows_written,
+            pages_fetched=result.pages_fetched,
+            file_size_bytes=result.file_size_bytes,
+            unique_places_count=len(result.unique_places),
+            format=output_format,
+            companion_files=companion_files,
+            # Present (True) only when multi-file export was requested.
+            multi_file=True if multi_file else None,
+        )
