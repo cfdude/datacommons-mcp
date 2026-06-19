@@ -1,0 +1,32 @@
+## 1. Native-flow corrections (do first; the native flow becomes live)
+
+- [ ] 1.1 In `clients.py::_transform_search_indicators_response`, sort each `index_result["results"]` list by `indicator.get("score", 0.0)` DESCENDING **before** the model-building loop (~clients.py:565). The built `SearchTopic`/`SearchVariable` carry NO score field, so the sort must operate on the raw API dicts (the legacy transform read score the same way). This preserves within-search score-descending order. NOTE: this is defensive/robust — the live endpoint is already score-ranked and the models drop score, so it is not a behavior change (a stable sort with the `0.0` default also leaves the existing test fixtures, which have no `score` key, in their current order → `TestDCClientFetchIndicatorsNew` passes unchanged).
+- [ ] 1.2 Fix `clients.py::_check_topic_exists_recursive` to union `_place_like_statvar_store` with `variable_cache`, using the None-safe form `place_variables = (self.variable_cache.get(place_dcid) or set()) | self._place_like_statvar_store.get(place_dcid, set())` (mirrors `_get_variable_places_with_data`/`_get_topic_places_with_data` but guards the cache-miss `None`, which the current `if place_variables` truthiness check tolerated). Keep the `if place_variables:` guard. So member-topic existence filtering keeps place-like behavior under the native flow.
+
+## 2. Re-wire the search service to the native flow
+
+- [ ] 2.1 In `services/search.py::search_indicators`, replace the `_search_vector` call with `client.search_indicators(search_tasks=..., per_search_limit=..., include_topics=...)` to get topics/variables/`dcid_name_mappings`.
+- [ ] 2.2 Keep resolving place metadata: call `client.fetch_entity_infos` for the place DCIDs (resolved query places + `parent_place`) and rebuild `dcid_place_type_mappings` and `resolved_parent_place`; merge the native result's `dcid_name_mappings` with place names into the final `SearchResponse`. (Reuse/trim `_fetch_and_update_lookups`/`_collect_all_dcids` for the place side; do not re-fetch indicator names the native flow already provides.)
+- [ ] 2.3 Delete the now-dead service helpers `_search_vector` and `_merge_search_results`; remove their imports/usages.
+
+## 3. Delete the legacy/shim chain + the flag
+
+- [ ] 3.1 Delete from `clients.py`: `search_svs`, `_call_search_indicators_temp`, `_transform_search_indicators_to_svs_format`, `fetch_indicators`, the client `_search_vector`, `_filter_topics_by_existence`, `_get_topics_members_with_existence`, `_build_lookups`. (Do task 4.3 — re-point the place-like guard test — BEFORE deleting `_filter_variables_by_existence` in 3.2.)
+- [ ] 3.2 Delete `clients.py::_filter_variables_by_existence` (legacy-only; its test is re-pointed in 4.3).
+- [ ] 3.3 Remove the `use_search_indicators_endpoint` flag: the `config.py` `DCSettings` field, the `DCClient.__init__` param/attr, and both factory pass-throughs (`_create_base_dc_client`, `_create_custom_dc_client`).
+- [ ] 3.4 Confirm the KEPT helpers are untouched and still referenced by the native flow: `_filter_indicators_by_existence`, `_expand_topics_to_variables`, `_get_topics_members_with_existence_new`, `_get_variable_places_with_data`, `_get_topic_places_with_data`, `_ensure_place_variables_cached`, `_transform_search_indicators_response`; and the place-like scaffolding (`_constrained_vars.py`, `_compute_place_like_statvar_store`, `_place_like_statvar_store`).
+
+## 4. Tests
+
+- [ ] 4.1 Rewrite `tests/test_services.py::TestSearchIndicators` (~17): mock `client.search_indicators` (returning a `SearchResult`/the native shape) and `client.fetch_entity_infos` (for place types), and assert the service still produces `dcid_place_type_mappings`, `resolved_parent_place`, merged names, topics/variables, and the bilateral/query task behaviors. Remove all `mock_client.use_search_indicators_endpoint = False` / `mock_client.fetch_indicators` setups.
+- [ ] 4.2 Delete the legacy/flag/shim tests: `test_dc_client.py` `TestDCClientSearch` (search_svs) and the legacy `TestDCClientFetchIndicators` (`fetch_indicators`/client `_search_vector`/`_filter_topics_by_existence`/`_get_topics_members_with_existence`/`_call_search_indicators_temp`); the flag default/`uses_search_vector` assertions in `TestCreateDCClient`; the `use_search_indicators_endpoint` parsing tests in `test_settings.py`.
+- [ ] 4.3 Re-point `tests/test_temp_constrained_vars.py` (the place-like guard currently on `_filter_variables_by_existence`) to assert place-like via `_get_variable_places_with_data` (or `_filter_indicators_by_existence`) — preserving the guard before `_filter_variables_by_existence` is deleted.
+- [ ] 4.4 Add a response-contract test for the tool/service. It MUST assert `dcid_place_type_mappings` is populated (verified: NO existing test asserts this field, and it is the highest-risk/contractual one — this is its only guard). Also assert: a `typeOf=="Topic"` indicator absent from the local store is surfaced in `topics`; `resolved_parent_place` is populated; and results are score-descending **within a single search** (cross-task results are concatenated in task order, matching legacy `_merge_search_results` parity — do NOT assert a global cross-task ordering).
+- [ ] 4.5 Confirm `TestDCClientFetchIndicatorsNew` (~20, previously testing the dead native flow) passes UNCHANGED — it is now the live spec. (Verified safe: its fixtures have no `score` key, so the task-1.1 stable sort with the `0.0` default preserves their order.)
+
+## 5. Verification & integration
+
+- [ ] 5.1 No legacy residue: `rg "search_svs|_call_search_indicators_temp|_transform_search_indicators_to_svs_format|fetch_indicators|use_search_indicators_endpoint|_merge_search_results" datacommons_mcp/` → only expected (none in production); confirm `_constrained_vars` + place-like still present.
+- [ ] 5.2 Final gate: `uv run ruff format --check && uv run ruff check && uv run pytest -m "not e2e"` → all pass (legacy tests removed, native tests + contract test green); `uv lock --check` consistent; server boots via `python datacommons_mcp/run_server.py` (EOF) with both tools registered.
+- [ ] 5.3 If `DC_API_KEY` is available locally, run a live `search_indicators` smoke (e.g. query "population") and confirm a sane, score-ordered `SearchResponse` with topics + place type-mappings.
+- [ ] 5.4 Commit per logical group (conventional commits), then proceed to Gate 2 (Superpowers code review) before finalizing.
