@@ -42,10 +42,11 @@ async def test_both_tools_advertise_field_level_output_schema(_dc_env):
     assert not _is_structureless(tools["search_indicators"].outputSchema)
     assert not _is_structureless(tools["get_observations"].outputSchema)
 
-    # get_observations should expose BOTH branches (screen/file) in its schema.
+    # get_observations should expose BOTH branches (screen/file) in its schema,
+    # via the output_mode literal tags (asserted specifically, not as loose substrings).
     obs_schema_text = str(tools["get_observations"].outputSchema)
-    assert "screen" in obs_schema_text
-    assert "file" in obs_schema_text
+    assert "'screen'" in obs_schema_text  # output_mode const for the screen branch
+    assert "'file'" in obs_schema_text  # output_mode const for the file branch
 
 
 @pytest.mark.asyncio
@@ -99,7 +100,9 @@ async def test_get_observations_screen_structured_content(monkeypatch, _dc_env):
         )
 
     # get_observations returns a tagged union -> FastMCP nests it under "result".
+    # Pin that wrapper explicitly (do not tolerate a flat shape).
     sc = result.structured_content
-    payload = sc.get("result", sc)  # tolerate wrapped or flat
+    assert "result" in sc
+    payload = sc["result"]
     assert payload["output_mode"] == "screen"
     assert payload["data"]["variable"]["dcid"] == "Count_Person"

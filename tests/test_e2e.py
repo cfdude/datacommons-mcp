@@ -83,11 +83,11 @@ class TestLiveAPIObservations:
         )
 
         # Single place should return to screen (no pagination expected)
-        assert result["output_mode"] == "screen"
-        assert "data" in result
-        assert result["data"]["variable"]["dcid"] == "Count_Person"
+        assert result.output_mode == "screen"
+        assert result.data is not None
+        assert result.data.variable.dcid == "Count_Person"
         # Should have population data for California
-        place_obs = result["data"]["place_observations"]
+        place_obs = result.data.place_observations
         assert len(place_obs) > 0
 
     @pytest.mark.e2e
@@ -127,13 +127,13 @@ class TestLiveAPIObservations:
         )
 
         # Should have data (either screen or file depending on pagination)
-        if result["output_mode"] == "screen":
-            assert "data" in result
-            assert len(result["data"]["place_observations"]) > 0
+        if result.output_mode == "screen":
+            assert result.data is not None
+            assert len(result.data.place_observations) > 0
         else:
-            assert result["output_mode"] == "file"
-            assert Path(result["file_path"]).exists()
-            assert result["rows_written"] > 0
+            assert result.output_mode == "file"
+            assert Path(result.file_path).exists()
+            assert result.rows_written > 0
 
     @pytest.mark.e2e
     async def test_force_file_creates_csv(self, temp_output_dir):
@@ -171,10 +171,10 @@ class TestLiveAPIObservations:
         )
 
         # Should create file even for single place
-        assert result["output_mode"] == "file"
-        file_path = Path(result["file_path"])
+        assert result.output_mode == "file"
+        file_path = Path(result.file_path)
         assert file_path.exists()
-        assert result["rows_written"] > 0
+        assert result.rows_written > 0
 
         # Verify CSV content
         content = file_path.read_text()
@@ -227,19 +227,19 @@ class TestLiveAPILargeDataset:
         )
 
         # This larger dataset should have multiple data points
-        if result["output_mode"] == "screen":
+        if result.output_mode == "screen":
             # If returned to screen, verify data structure
-            assert "data" in result
-            place_obs = result["data"]["place_observations"]
+            assert result.data is not None
+            place_obs = result.data.place_observations
             # Should have data for multiple states
             assert len(place_obs) >= 50  # US has 50 states + territories
         else:
             # If streamed to file, verify file
-            assert result["output_mode"] == "file"
-            file_path = Path(result["file_path"])
+            assert result.output_mode == "file"
+            file_path = Path(result.file_path)
             assert file_path.exists()
             # Should have at least 50 states * some years of data
-            assert result["rows_written"] >= 50
+            assert result.rows_written >= 50
 
 
 def pytest_configure(config):
