@@ -35,8 +35,8 @@ from ..utils.path_resolver import PathResolver
 
 logger = logging.getLogger(__name__)
 
-# Project/extension root: three levels up from servers/base.py
-# servers/base.py -> servers/ -> datacommons_mcp/ -> project_root/
+# Project/extension root: three levels up from tools/base.py
+# tools/base.py -> tools/ -> datacommons_mcp/ -> project_root/
 _PROJECT_ROOT = Path(__file__).parent.parent.parent
 
 

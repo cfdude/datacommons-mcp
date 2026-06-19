@@ -1,14 +1,14 @@
 {
   "version": 1,
-  "active": "structured-tool-output",
+  "active": "src-layout-and-rename",
   "epics": [
     {
-      "id": "structured-tool-output",
-      "title": "structured-tool-output",
-      "priority": "P1",
+      "id": "src-layout-and-rename",
+      "title": "Adopt src/ layout and rename servers/ to tools/",
+      "priority": "P2",
       "status": "active",
       "role": "epic",
-      "lane": "openspec",
+      "lane": "superpowers",
       "links": [],
       "reconcileNeeded": false
     }

@@ -53,7 +53,7 @@ async def test_both_tools_advertise_field_level_output_schema(_dc_env):
 async def test_search_indicators_structured_content_matches_model(monkeypatch, _dc_env):
     from fastmcp import Client
 
-    import datacommons_mcp.servers.search as search_mod
+    import datacommons_mcp.tools.search as search_mod
     from datacommons_mcp.fastmcp_server import mcp
 
     async def _fake_search(*args, **kwargs):
@@ -78,7 +78,7 @@ async def test_search_indicators_structured_content_matches_model(monkeypatch, _
 async def test_get_observations_screen_structured_content(monkeypatch, _dc_env):
     from fastmcp import Client
 
-    import datacommons_mcp.servers.observations as obs_mod
+    import datacommons_mcp.tools.observations as obs_mod
     from datacommons_mcp.fastmcp_server import mcp
 
     response = ObservationToolResponse(
