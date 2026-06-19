@@ -26,7 +26,7 @@ from datacommons_mcp.data_models.search import (
     SearchTopic,
     SearchVariable,
 )
-from datacommons_mcp.exceptions import DataLookupError
+from datacommons_mcp.exceptions import DataLookupError, InvalidInputError
 
 logger = logging.getLogger(__name__)
 
@@ -211,10 +211,10 @@ def _validate_search_parameters(
     """
     # Validate per_search_limit parameter
     if not 1 <= per_search_limit <= 100:
-        raise ValueError("per_search_limit must be between 1 and 100")
+        raise InvalidInputError("per_search_limit must be between 1 and 100")
 
     if parent_place and not places:
-        raise ValueError("`places` must be specified when `parent_place` is provided.")
+        raise InvalidInputError("`places` must be specified when `parent_place` is provided.")
 
 
 async def _resolve_places(

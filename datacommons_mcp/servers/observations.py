@@ -13,8 +13,6 @@
 # limitations under the License.
 """Get observations tool for Data Commons MCP server."""
 
-import logging
-import sys
 from pathlib import Path
 from typing import Literal
 
@@ -25,9 +23,7 @@ from ..data_models.observations import ObservationDateType
 from ..services import get_observations_paginated as get_observations_service
 from ..utils.output_handler import OutputHandler, OutputHandlerConfig
 from .base import mcp
-from .common import get_client, get_config
-
-logger = logging.getLogger(__name__)
+from .common import get_client, get_config, tool_error_boundary
 
 
 @mcp.tool(
@@ -129,7 +125,7 @@ async def get_observations(
     """
     await ctx.debug(f"get_observations called: variable={variable_dcid}, place={place_dcid}")
 
-    try:
+    with tool_error_boundary():
         # Get client and config from lifespan context
         client = get_client(ctx)
         config = get_config(ctx)
@@ -174,11 +170,6 @@ async def get_observations(
         )
 
         return result
-
-    except Exception as e:
-        logger.exception("Error in get_observations: %s", e)
-        print(f"ERROR in get_observations: {type(e).__name__}: {e}", file=sys.stderr)
-        raise
 
 
 __all__ = ["get_observations"]

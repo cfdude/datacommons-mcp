@@ -34,7 +34,7 @@ from datacommons_mcp.data_models.observations import (
     SourceProcessingResult,
     TimeSeriesPoint,
 )
-from datacommons_mcp.exceptions import DataLookupError
+from datacommons_mcp.exceptions import DataLookupError, InvalidInputError
 from datacommons_mcp.utils import filter_by_date
 
 logger = logging.getLogger(__name__)
@@ -53,10 +53,10 @@ async def _validate_and_build_request(
 ) -> ObservationRequest:
     """Validates inputs and builds an ObservationRequest, resolving place names."""
     if not variable_dcid:
-        raise ValueError("'variable_dcid' must be specified.")
+        raise InvalidInputError("'variable_dcid' must be specified.")
 
     if not (place_name or place_dcid):
-        raise ValueError("Specify either 'place_name' or 'place_dcid'.")
+        raise InvalidInputError("Specify either 'place_name' or 'place_dcid'.")
 
     parsed_date = ObservationDate(date=date)
     if parsed_date.date == ObservationDateType.RANGE:
@@ -70,7 +70,7 @@ async def _validate_and_build_request(
         date_request_type = ObservationDateType.ALL
 
     if parsed_date.date != ObservationDateType.RANGE and (date_range_start or date_range_end):
-        raise ValueError("To specificy a date range, set `date` to 'range'.")
+        raise InvalidInputError("To specificy a date range, set `date` to 'range'.")
 
     resolved_place_dcid = place_dcid
     if not resolved_place_dcid:

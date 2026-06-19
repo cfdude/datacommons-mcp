@@ -167,6 +167,10 @@ mcp = FastMCP(
     to files to preserve context window.
     """,
     lifespan=dc_lifespan,
+    # Mask internal error details from clients (default is False, which would
+    # leak raw exception text). The tool error boundary surfaces intended
+    # ToolError messages; everything else is masked.
+    mask_error_details=True,
 )
 
 
