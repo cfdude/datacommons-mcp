@@ -60,8 +60,12 @@ def test_merge_dicts_unions_values():
     assert merged["p3"] == {"v5"}
 
 
-def test_filter_variables_includes_place_like_store(mocked_datacommons_client):
-    """_filter_variables_by_existence should consider _place_like_statvar_store union."""
+def test_get_variable_places_with_data_includes_place_like_store(mocked_datacommons_client):
+    """_get_variable_places_with_data should consider _place_like_statvar_store union.
+
+    (Re-pointed from the deleted legacy _filter_variables_by_existence; the native flow's
+    variable existence check unions place-like data via this shared helper.)
+    """
     client_under_test = DCClient(dc=mocked_datacommons_client)
     # Variable cache has no variables for the place
     client_under_test.variable_cache = Mock()
@@ -69,11 +73,30 @@ def test_filter_variables_includes_place_like_store(mocked_datacommons_client):
     # Place-like store provides the variable for the place
     client_under_test._place_like_statvar_store = {"geoId/06": {"dc/variable/Count_Person"}}
 
-    result = client_under_test._filter_variables_by_existence(
-        ["dc/variable/Count_Person"], ["geoId/06"]
+    places = client_under_test._get_variable_places_with_data(
+        "dc/variable/Count_Person", ["geoId/06"]
     )
 
-    assert result == [{"dcid": "dc/variable/Count_Person", "places_with_data": ["geoId/06"]}]
+    assert places == ["geoId/06"]
+
+
+def test_check_topic_exists_recursive_includes_place_like_store(mocked_datacommons_client):
+    """_check_topic_exists_recursive should union _place_like_statvar_store (None-safe).
+
+    Guards the migration fix: the native flow's recursive member-topic existence check
+    must count place-like-only variables even when the variable cache misses (returns None).
+    """
+    client_under_test = DCClient(dc=mocked_datacommons_client)
+    topic_dcid = "dc/topic/Health"
+    var_dcid = "dc/variable/Count_Person"
+    topic_obj = Mock(member_topics=[], member_variables=[var_dcid])
+    client_under_test.topic_store = Mock(topics_by_dcid={topic_dcid: topic_obj})
+    # Variable cache MISSES (returns None); place-like store provides the variable
+    client_under_test.variable_cache = Mock()
+    client_under_test.variable_cache.get.side_effect = lambda _: None
+    client_under_test._place_like_statvar_store = {"geoId/06": {var_dcid}}
+
+    assert client_under_test._check_topic_exists_recursive(topic_dcid, ["geoId/06"]) is True
 
 
 def test_get_topic_places_with_data_includes_place_like_store(

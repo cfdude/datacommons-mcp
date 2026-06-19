@@ -22,7 +22,14 @@ from datacommons_mcp.data_models.observations import (
     ObservationDateType,
     ObservationToolResponse,
 )
-from datacommons_mcp.data_models.search import NodeInfo, ResolvedPlace
+from datacommons_mcp.data_models.search import (
+    NodeInfo,
+    ResolvedPlace,
+    SearchResponse,
+    SearchTask,
+    SearchTopic,
+    SearchVariable,
+)
 from datacommons_mcp.exceptions import (
     DataLookupError,
     InvalidDateFormatError,
@@ -798,532 +805,233 @@ class TestGetObservations:
 
 
 @pytest.mark.asyncio
+def _search_response(*, topics=None, variables=None, names=None):
+    """Build a SearchResponse as returned by client.search_indicators (names/topics/variables only)."""
+    return SearchResponse(
+        status="SUCCESS",
+        dcid_name_mappings=names or {},
+        topics=topics or [],
+        variables=variables or [],
+    )
+
+
 class TestSearchIndicators:
-    """Tests for the search_indicators service function."""
+    """Tests for the search_indicators service function.
+
+    The service delegates result-finding to ``client.search_indicators`` (which returns
+    topics/variables/name mappings) and then resolves PLACE metadata via
+    ``client.fetch_entity_infos`` to rebuild ``dcid_place_type_mappings`` and
+    ``resolved_parent_place``. These tests assert that wiring: the search tasks the
+    service constructs and the response contract it preserves. Result finding,
+    existence filtering, and dedup are the client's responsibility (covered by
+    TestDCClientFetchIndicatorsNew).
+    """
 
     @pytest.mark.asyncio
-    async def test_search_indicators_browse_mode_basic(self):
-        """Test basic search in browse mode without place filtering."""
+    async def test_browse_mode_basic(self):
+        """No places: one task, result passes through, no place lookup."""
         mock_client = Mock()
-        mock_client.use_search_indicators_endpoint = False
-        mock_client.fetch_indicators = AsyncMock(
-            return_value={"topics": [], "variables": [], "lookups": {}}
-        )
+        mock_client.search_indicators = AsyncMock(return_value=_search_response())
         mock_client.fetch_entity_infos = AsyncMock(return_value={})
-        result = await search_indicators(
-            client=mock_client,
-            query="health",
-        )
 
-        assert result.topics is not None
-        assert result.variables is not None
-        assert result.dcid_name_mappings is not None
+        result = await search_indicators(client=mock_client, query="health")
+
         assert result.status == "SUCCESS"
-        mock_client.fetch_indicators.assert_called_once_with(
-            query="health", place_dcids=[], include_topics=True, max_results=10
-        )
+        assert result.topics == []
+        assert result.variables == []
+        mock_client.search_indicators.assert_awaited_once()
+        kwargs = mock_client.search_indicators.call_args.kwargs
+        assert kwargs["search_tasks"] == [SearchTask(query="health", place_dcids=[])]
+        assert kwargs["per_search_limit"] == 10
+        assert kwargs["include_topics"] is True
+        # No places -> no place-metadata lookup
+        mock_client.fetch_entity_infos.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_search_indicators_browse_mode_with_places(self):
-        """Test search in browse mode with place filtering."""
+    async def test_with_places_preserves_full_contract(self):
+        """Topics/variables pass through; place types + names rebuilt from fetch_entity_infos (PLACES only)."""
         mock_client = Mock()
-        mock_client.use_search_indicators_endpoint = False
         mock_client.search_places = AsyncMock(return_value={"France": "country/FRA"})
-        mock_client.fetch_indicators = AsyncMock(
-            return_value={
-                "topics": [{"dcid": "topic/trade"}],
-                "variables": [
-                    {"dcid": "TradeExports_FRA"},
-                    {"dcid": "TradeImports_FRA"},
-                ],
-                "lookups": {
-                    "topic/trade": "Trade",
-                    "TradeExports_FRA": "Exports to France",
-                    "TradeImports_FRA": "Imports from France",
-                },
-            }
+        mock_client.search_indicators = AsyncMock(
+            return_value=_search_response(
+                topics=[SearchTopic(dcid="topic/trade")],
+                variables=[SearchVariable(dcid="TradeExports_FRA")],
+                names={"topic/trade": "Trade", "TradeExports_FRA": "Exports to France"},
+            )
         )
         mock_client.fetch_entity_infos = AsyncMock(
-            return_value={
-                "topic/trade": NodeInfo(name="Trade", typeOf=["Topic"]),
-                "TradeExports_FRA": NodeInfo(
-                    name="Exports to France", typeOf=["StatisticalVariable"]
-                ),
-                "TradeImports_FRA": NodeInfo(
-                    name="Imports from France", typeOf=["StatisticalVariable"]
-                ),
-            }
+            return_value={"country/FRA": NodeInfo(name="France", typeOf=["Country"])}
         )
 
         result = await search_indicators(client=mock_client, query="trade", places=["France"])
 
-        # Should have both topics and variables in expected order
-        expected_topic_dcids = ["topic/trade"]
-        expected_variable_dcids = ["TradeExports_FRA", "TradeImports_FRA"]
-        actual_topic_dcids = [t.dcid for t in result.topics]
-        actual_variable_dcids = [v.dcid for v in result.variables]
-        assert actual_topic_dcids == expected_topic_dcids
-        assert actual_variable_dcids == expected_variable_dcids
-
-        # Verify that fetch_entity_infos is called with the correct DCIDs
-        expected_dcids = {
-            "topic/trade",
-            "TradeExports_FRA",
-            "TradeImports_FRA",
-            "country/FRA",
-        }
-        mock_client.fetch_entity_infos.assert_called_once()
-        actual_dcids = set(mock_client.fetch_entity_infos.call_args[0][0])
-        assert actual_dcids == expected_dcids
+        assert [t.dcid for t in result.topics] == ["topic/trade"]
+        assert [v.dcid for v in result.variables] == ["TradeExports_FRA"]
+        # Names merged: indicator names (from client) + place names (from fetch_entity_infos)
+        assert result.dcid_name_mappings["topic/trade"] == "Trade"
+        assert result.dcid_name_mappings["country/FRA"] == "France"
+        # Place type-mappings rebuilt for the query place (contractual field)
+        assert result.dcid_place_type_mappings == {"country/FRA": ["Country"]}
+        # fetch_entity_infos called with PLACE dcids ONLY (not topic/variable dcids)
+        mock_client.fetch_entity_infos.assert_awaited_once()
+        assert set(mock_client.fetch_entity_infos.call_args[0][0]) == {"country/FRA"}
+        # The search task carries the resolved place dcid
+        assert mock_client.search_indicators.call_args.kwargs["search_tasks"] == [
+            SearchTask(query="trade", place_dcids=["country/FRA"])
+        ]
 
     @pytest.mark.asyncio
-    async def test_search_indicators_browse_mode_with_custom_per_search_limit(self):
-        """Test search in browse mode with custom per_search_limit parameter."""
+    async def test_custom_per_search_limit_passed_through(self):
         mock_client = Mock()
-        mock_client.use_search_indicators_endpoint = False
-        mock_client.fetch_indicators = AsyncMock(
-            return_value={
-                "topics": [{"dcid": "topic/health"}],
-                "variables": [{"dcid": "Count_Person"}],
-                "lookups": {"topic/health": "Health", "Count_Person": "Population"},
-            }
-        )
-        mock_client.fetch_entity_infos = AsyncMock(
-            return_value={
-                "topic/health": NodeInfo(name="Health", typeOf=["Topic"]),
-                "Count_Person": NodeInfo(name="Population", typeOf=["StatisticalVariable"]),
-            }
-        )
+        mock_client.search_indicators = AsyncMock(return_value=_search_response())
+        mock_client.fetch_entity_infos = AsyncMock(return_value={})
 
         await search_indicators(client=mock_client, query="health", per_search_limit=5)
 
-        # Verify per_search_limit was passed to client
-        mock_client.fetch_indicators.assert_called_once_with(
-            query="health", place_dcids=[], include_topics=True, max_results=5
-        )
+        assert mock_client.search_indicators.call_args.kwargs["per_search_limit"] == 5
 
     @pytest.mark.asyncio
-    async def test_search_indicators_browse_mode_per_search_limit_validation(self):
-        """Test per_search_limit parameter validation in browse mode."""
+    async def test_per_search_limit_validation(self):
         mock_client = Mock()
-        mock_client.use_search_indicators_endpoint = False
+        mock_client.search_indicators = AsyncMock(return_value=_search_response())
+        mock_client.fetch_entity_infos = AsyncMock(return_value={})
 
-        # Test invalid per_search_limit values
         with pytest.raises(ValueError, match="per_search_limit must be between 1 and 100"):
             await search_indicators(client=mock_client, query="health", per_search_limit=0)
-
         with pytest.raises(ValueError, match="per_search_limit must be between 1 and 100"):
             await search_indicators(client=mock_client, query="health", per_search_limit=101)
 
-        # Test valid per_search_limit values
-        mock_client.fetch_indicators = AsyncMock(return_value={})
-
-        # Should not raise for valid values
+        # Valid boundary values should not raise
         await search_indicators(client=mock_client, query="health", per_search_limit=1)
         await search_indicators(client=mock_client, query="health", per_search_limit=100)
 
     @pytest.mark.asyncio
-    async def test_search_indicators_exclude_topics(self):
-        """Test basic search in lookup mode with a single place."""
+    async def test_exclude_topics(self):
         mock_client = Mock()
-        mock_client.use_search_indicators_endpoint = False
         mock_client.search_places = AsyncMock(return_value={"USA": "country/USA"})
-        mock_client.fetch_indicators = AsyncMock(
-            return_value={
-                "variables": [{"dcid": "Count_Person"}, {"dcid": "Count_Household"}],
-            }
+        mock_client.search_indicators = AsyncMock(
+            return_value=_search_response(
+                variables=[
+                    SearchVariable(dcid="Count_Person"),
+                    SearchVariable(dcid="Count_Household"),
+                ],
+                names={"Count_Person": "Population", "Count_Household": "Households"},
+            )
         )
         mock_client.fetch_entity_infos = AsyncMock(
-            return_value={
-                "Count_Person": NodeInfo(name="Population", typeOf=["StatisticalVariable"]),
-                "Count_Household": NodeInfo(name="Households", typeOf=["StatisticalVariable"]),
-                "country/USA": NodeInfo(name="USA", typeOf=["Country"]),
-            }
+            return_value={"country/USA": NodeInfo(name="USA", typeOf=["Country"])}
         )
 
         result = await search_indicators(
             client=mock_client, query="health", places=["USA"], include_topics=False
         )
 
-        # Should have variables with dcid and places_with_data in expected order
-        expected_variable_dcids = ["Count_Person", "Count_Household"]
-        actual_variable_dcids = [v.dcid for v in result.variables]
-        assert actual_variable_dcids == expected_variable_dcids
+        assert [v.dcid for v in result.variables] == ["Count_Person", "Count_Household"]
+        assert mock_client.search_indicators.call_args.kwargs["include_topics"] is False
 
     @pytest.mark.asyncio
-    async def test_search_indicators_exclude_topics_merge_results(self):
-        """Test that results from multiple bilateral searches are properly merged and deduplicated."""
+    async def test_exclude_topics_no_places(self):
         mock_client = Mock()
-        mock_client.use_search_indicators_endpoint = False
-        mock_client.search_places = AsyncMock(
-            return_value={"France": "country/FRA", "Germany": "country/DEU"}
-        )
-        mock_client.fetch_indicators = AsyncMock(
-            side_effect=[
-                {"variables": [{"dcid": "TradeExports_FRA"}]},  # Base query with both places
-                {
-                    "variables": [
-                        {"dcid": "TradeExports_DEU"},
-                        {"dcid": "TradeExports_FRA"},
-                    ]
-                },  # query + France (filtered by Germany)
-                {
-                    "variables": [{"dcid": "TradeExports_FRA"}]
-                },  # query + Germany (filtered by France)
-            ]
-        )
-        mock_client.fetch_entity_infos = AsyncMock(
-            return_value={
-                "TradeExports_FRA": NodeInfo(
-                    name="Exports to France", typeOf=["StatisticalVariable"]
-                ),
-                "TradeExports_DEU": NodeInfo(
-                    name="Exports to Germany", typeOf=["StatisticalVariable"]
-                ),
-                "country/FRA": NodeInfo(name="France", typeOf=["Country"]),
-                "country/DEU": NodeInfo(name="Germany", typeOf=["Country"]),
-            }
-        )
-
-        result = await search_indicators(
-            client=mock_client,
-            query="trade",
-            places=["France", "Germany"],
-            include_topics=False,
-            maybe_bilateral=True,
-        )
-
-        # Should have deduplicated variables in expected order
-        assert result.topics == []
-        expected_variable_dcids = ["TradeExports_FRA", "TradeExports_DEU"]
-        actual_variable_dcids = [v.dcid for v in result.variables]
-        assert actual_variable_dcids == expected_variable_dcids
-
-    @pytest.mark.asyncio
-    async def test_search_indicators_exclude_topics_per_search_limit_validation(self):
-        """Test per_search_limit parameter when topics are excluded."""
-        mock_client = Mock()
-        mock_client.use_search_indicators_endpoint = False
-
-        # Test invalid per_search_limit values
-        with pytest.raises(ValueError, match="per_search_limit must be between 1 and 100"):
-            await search_indicators(
-                client=mock_client,
-                query="health",
-                include_topics=False,
-                per_search_limit=0,
+        mock_client.search_indicators = AsyncMock(
+            return_value=_search_response(
+                variables=[SearchVariable(dcid="Count_Person")],
+                names={"Count_Person": "Population"},
             )
-
-        with pytest.raises(ValueError, match="per_search_limit must be between 1 and 100"):
-            await search_indicators(
-                client=mock_client,
-                query="health",
-                include_topics=False,
-                per_search_limit=101,
-            )
-
-        # Test valid per_search_limit values with place (so lookup mode is actually used)
-        mock_client.search_places = AsyncMock(return_value={"USA": "country/USA"})
-        mock_client.fetch_indicators = AsyncMock(return_value={"variables": []})
+        )
         mock_client.fetch_entity_infos = AsyncMock(return_value={})
 
-        # Should not raise for valid values
-        await search_indicators(
-            client=mock_client,
-            query="health",
-            places=["USA"],
-            include_topics=False,
-            per_search_limit=1,
-        )
-        await search_indicators(
-            client=mock_client,
-            query="health",
-            places=["USA"],
-            include_topics=False,
-            per_search_limit=100,
-        )
+        result = await search_indicators(client=mock_client, query="health", include_topics=False)
 
-    @pytest.mark.asyncio
-    async def test_search_indicators_exclude_topics_no_places(self):
-        """Test that lookup mode works when no places are provided."""
-        mock_client = Mock()
-        mock_client.use_search_indicators_endpoint = False
-        mock_client.fetch_indicators = AsyncMock(
-            return_value={
-                "variables": [{"dcid": "Count_Person"}],
-                "lookups": {"Count_Person": "Population"},
-            }
-        )
-        mock_client.fetch_entity_infos = AsyncMock(
-            return_value={
-                "Count_Person": NodeInfo(name="Population", typeOf=["StatisticalVariable"])
-            }
-        )
-
-        # Call with lookup mode but no places - should automatically fall back to browse mode
-        result = await search_indicators(
-            client=mock_client,
-            query="health",
-            include_topics=False,  # No places provided
-        )
-
-        # Should return lookup mode results (variables only)
         assert result.topics == []
-        assert result.variables is not None
-        assert result.dcid_name_mappings is not None
+        assert [v.dcid for v in result.variables] == ["Count_Person"]
         assert result.status == "SUCCESS"
-        mock_client.fetch_indicators.assert_called_once_with(
-            query="health", place_dcids=[], include_topics=False, max_results=10
-        )
+        kwargs = mock_client.search_indicators.call_args.kwargs
+        assert kwargs["search_tasks"] == [SearchTask(query="health", place_dcids=[])]
+        assert kwargs["include_topics"] is False
 
     @pytest.mark.asyncio
-    async def test_search_indicators_places_parameter_behavior(self):
-        """Test places parameter behavior across browse and lookup modes."""
+    async def test_places_build_single_task(self):
+        """places=[...] builds a single task carrying all resolved place dcids."""
         mock_client = Mock()
-        mock_client.use_search_indicators_endpoint = False
         mock_client.search_places = AsyncMock(
-            return_value={
-                "France": "country/FRA",
-                "USA": "country/USA",
-                "Canada": "country/CAN",
-            }
+            return_value={"USA": "country/USA", "Canada": "country/CAN", "Mexico": "country/MEX"}
         )
-        mock_client.fetch_indicators = AsyncMock(
-            return_value={"topics": [], "variables": [], "lookups": {}}
-        )
+        mock_client.search_indicators = AsyncMock(return_value=_search_response())
         mock_client.fetch_entity_infos = AsyncMock(return_value={})
 
-        # Test 1: Single place including topics
         result = await search_indicators(
-            client=mock_client,
-            query="trade exports",
-            places=["France"],
+            client=mock_client, query="trade exports", places=["USA", "Canada", "Mexico"]
         )
+
         assert result.status == "SUCCESS"
-        mock_client.search_places.assert_called_with(["France"])
-        mock_client.fetch_indicators.assert_called_once_with(
-            query="trade exports",
-            place_dcids=["country/FRA"],
-            include_topics=True,
-            max_results=10,
-        )
-
-        # Reset mocks for next test
-        mock_client.reset_mock()
-        mock_client.use_search_indicators_endpoint = False
-        mock_client.search_places = AsyncMock(return_value={"France": "country/FRA"})
-        mock_client.fetch_indicators = AsyncMock(
-            return_value={"topics": [], "variables": [], "lookups": {}}
-        )
-        mock_client.fetch_entity_infos = AsyncMock(return_value={})
-
-        # Test 2: Single place variables-only
-        result = await search_indicators(
-            client=mock_client,
-            query="trade exports",
-            places=["France"],
-            include_topics=False,
-        )
-        assert result.status == "SUCCESS"
-        mock_client.search_places.assert_called_with(["France"])
-        mock_client.fetch_indicators.assert_called_once_with(
-            query="trade exports",
-            place_dcids=["country/FRA"],
-            include_topics=False,
-            max_results=10,
-        )
-
-        # Reset mocks for next test
-        mock_client.reset_mock()
-        mock_client.use_search_indicators_endpoint = False
-        mock_client.search_places = AsyncMock(
-            return_value={
-                "USA": "country/USA",
-                "Canada": "country/CAN",
-                "Mexico": "country/MEX",
-            }
-        )
-        mock_client.fetch_indicators = AsyncMock(
-            return_value={"topics": [], "variables": [], "lookups": {}}
-        )
-        mock_client.fetch_entity_infos = AsyncMock(return_value={})
-
-        # Test 3: Multiple places including topics
-        result = await search_indicators(
-            client=mock_client,
-            query="trade exports",
-            places=["USA", "Canada", "Mexico"],
-        )
-        assert result.status == "SUCCESS"
-        mock_client.search_places.assert_called_with(["USA", "Canada", "Mexico"])
-        mock_client.fetch_indicators.assert_called_once_with(
-            query="trade exports",
-            place_dcids=["country/USA", "country/CAN", "country/MEX"],
-            include_topics=True,
-            max_results=10,
-        )
+        mock_client.search_places.assert_awaited_with(["USA", "Canada", "Mexico"])
+        assert mock_client.search_indicators.call_args.kwargs["search_tasks"] == [
+            SearchTask(
+                query="trade exports",
+                place_dcids=["country/USA", "country/CAN", "country/MEX"],
+            )
+        ]
 
     @pytest.mark.asyncio
-    async def test_search_indicators_maybe_bilateral_behavior(self):
-        """Test maybe_bilateral parameter behavior across browse and lookup modes."""
+    async def test_maybe_bilateral_builds_per_place_tasks(self):
+        """maybe_bilateral builds one task per place (query rewritten) + the original, all carrying every place dcid."""
         mock_client = Mock()
-        mock_client.use_search_indicators_endpoint = False
         mock_client.search_places = AsyncMock(
             return_value={"USA": "country/USA", "France": "country/FRA"}
         )
-        mock_client.fetch_indicators = AsyncMock(
-            return_value={"topics": [], "variables": [], "lookups": {}}
-        )
+        mock_client.search_indicators = AsyncMock(return_value=_search_response())
         mock_client.fetch_entity_infos = AsyncMock(return_value={})
 
-        # Test 1: Maybe bilateral including topics
         result = await search_indicators(
             client=mock_client,
             query="trade exports",
             places=["USA", "France"],
             maybe_bilateral=True,
         )
+
         assert result.status == "SUCCESS"
-        mock_client.search_places.assert_called_with(["USA", "France"])
-        assert mock_client.fetch_indicators.call_count == 3
-
-        # Assert the actual queries fetch_indicators was called with
-        calls = mock_client.fetch_indicators.call_args_list
-        # The first call should be with USA appended to query
-        assert calls[0].kwargs == {
-            "query": "trade exports USA",
-            "place_dcids": ["country/USA", "country/FRA"],
-            "include_topics": True,
-            "max_results": 10,
-        }
-        # The second call should be with France appended to query
-        assert calls[1].kwargs == {
-            "query": "trade exports France",
-            "place_dcids": ["country/USA", "country/FRA"],
-            "include_topics": True,
-            "max_results": 10,
-        }
-        # The third call should be the original query with both place DCIDs
-        assert calls[2].kwargs == {
-            "query": "trade exports",
-            "place_dcids": ["country/USA", "country/FRA"],
-            "include_topics": True,
-            "max_results": 10,
-        }
-
-        # Reset mocks for next test
-        mock_client.reset_mock()
-        mock_client.use_search_indicators_endpoint = False
-        mock_client.search_places = AsyncMock(
-            return_value={"USA": "country/USA", "France": "country/FRA"}
-        )
-        mock_client.fetch_indicators = AsyncMock(
-            return_value={"topics": [], "variables": [], "lookups": {}}
-        )
-        mock_client.fetch_entity_infos = AsyncMock(return_value={})
-
-        # Test 2: Maybe bilateral variables-only
-        result = await search_indicators(
-            client=mock_client,
-            query="trade exports",
-            places=["USA", "France"],
-            include_topics=False,
-            maybe_bilateral=True,
-        )
-        assert result.status == "SUCCESS"
-        mock_client.search_places.assert_called_with(["USA", "France"])
-        assert mock_client.fetch_indicators.call_count == 3
-
-        # Assert the same query rewriting behavior
-        calls = mock_client.fetch_indicators.call_args_list
-        # The first call should be with USA appended to query
-        assert calls[0].kwargs == {
-            "query": "trade exports USA",
-            "place_dcids": ["country/USA", "country/FRA"],
-            "include_topics": False,
-            "max_results": 10,
-        }
-        # The second call should be with France appended to query
-        assert calls[1].kwargs == {
-            "query": "trade exports France",
-            "place_dcids": ["country/USA", "country/FRA"],
-            "include_topics": False,
-            "max_results": 10,
-        }
-        # The third call should be the original query with both place DCIDs
-        assert calls[2].kwargs == {
-            "query": "trade exports",
-            "place_dcids": ["country/USA", "country/FRA"],
-            "include_topics": False,
-            "max_results": 10,
-        }
+        both = ["country/USA", "country/FRA"]
+        assert mock_client.search_indicators.call_args.kwargs["search_tasks"] == [
+            SearchTask(query="trade exports USA", place_dcids=both),
+            SearchTask(query="trade exports France", place_dcids=both),
+            SearchTask(query="trade exports", place_dcids=both),
+        ]
 
     @pytest.mark.asyncio
-    async def test_search_indicators_parameter_validation(self):
-        """Test parameter validation for new place parameters."""
+    async def test_maybe_bilateral_false_builds_single_task(self):
         mock_client = Mock()
-        mock_client.use_search_indicators_endpoint = False
         mock_client.search_places = AsyncMock(
             return_value={"USA": "country/USA", "France": "country/FRA"}
         )
-        mock_client.fetch_indicators = AsyncMock(return_value={"variables": []})
-        mock_client.fetch_entity_infos = AsyncMock(return_value={})
-
-        # Test maybe_bilateral=True with places (should work)
-        result = await search_indicators(
-            client=mock_client,
-            query="test",
-            places=["USA", "France"],
-            maybe_bilateral=True,
-        )
-        assert result.status == "SUCCESS"
-        assert mock_client.fetch_indicators.call_count == 3  # len(places) + 1
-
-        # Test maybe_bilateral=False with places (should work)
-        mock_client.reset_mock()
-        mock_client.use_search_indicators_endpoint = False
-        mock_client.search_places = AsyncMock(
-            return_value={"USA": "country/USA", "France": "country/FRA"}
-        )
-        mock_client.fetch_indicators = AsyncMock(return_value={"variables": []})
+        mock_client.search_indicators = AsyncMock(return_value=_search_response())
         mock_client.fetch_entity_infos = AsyncMock(return_value={})
 
         result = await search_indicators(
-            client=mock_client,
-            query="test",
-            places=["USA", "France"],
-            maybe_bilateral=False,
+            client=mock_client, query="test", places=["USA", "France"], maybe_bilateral=False
         )
+
         assert result.status == "SUCCESS"
-        assert mock_client.fetch_indicators.call_count == 1  # single search
+        tasks = mock_client.search_indicators.call_args.kwargs["search_tasks"]
+        assert tasks == [SearchTask(query="test", place_dcids=["country/USA", "country/FRA"])]
 
     @pytest.mark.asyncio
-    async def test_search_indicators_with_parent_place(self):
-        """Test search with parent_place resolves parent and filters by children."""
+    async def test_with_parent_place(self):
+        """parent_place is resolved and excluded from query tasks; place types + resolved parent rebuilt."""
         mock_client = Mock()
         mock_client.search_places = AsyncMock(
-            return_value={
-                "USA": "country/USA",
-                "California": "geoId/06",
-                "Texas": "geoId/48",
-            }
+            return_value={"USA": "country/USA", "California": "geoId/06", "Texas": "geoId/48"}
         )
-        mock_client.fetch_indicators = AsyncMock(
-            return_value={
-                "variables": [
-                    {
-                        "dcid": "Count_Person",
-                        "places_with_data": ["geoId/06", "geoId/48"],
-                    }
-                ]
-            }
+        mock_client.search_indicators = AsyncMock(
+            return_value=_search_response(
+                variables=[SearchVariable(dcid="Count_Person")],
+                names={"Count_Person": "Population"},
+            )
         )
         mock_client.fetch_entity_infos = AsyncMock(
             return_value={
                 "country/USA": NodeInfo(name="United States", typeOf=["Country"]),
                 "geoId/06": NodeInfo(name="California", typeOf=["State"]),
                 "geoId/48": NodeInfo(name="Texas", typeOf=["State"]),
-                "Count_Person": NodeInfo(name="Population", typeOf=["StatisticalVariable"]),
             }
         )
 
@@ -1337,18 +1045,24 @@ class TestSearchIndicators:
         assert result.resolved_parent_place == ResolvedPlace(
             dcid="country/USA", name="United States", type_of=["Country"]
         )
-
-        # Verify that existence check was done on children only
-        mock_client.fetch_indicators.assert_called_once_with(
-            query="population",
-            place_dcids=["geoId/06", "geoId/48"],
-            include_topics=True,
-            max_results=10,
-        )
+        # Place type-mappings cover the query places (parent excluded from query tasks)
+        assert result.dcid_place_type_mappings == {
+            "geoId/06": ["State"],
+            "geoId/48": ["State"],
+        }
+        # The search task carries the child place dcids only (parent excluded)
+        assert mock_client.search_indicators.call_args.kwargs["search_tasks"] == [
+            SearchTask(query="population", place_dcids=["geoId/06", "geoId/48"])
+        ]
+        # fetch_entity_infos called with query places + parent
+        assert set(mock_client.fetch_entity_infos.call_args[0][0]) == {
+            "geoId/06",
+            "geoId/48",
+            "country/USA",
+        }
 
     @pytest.mark.asyncio
-    async def test_search_indicators_parent_place_no_places(self):
-        """Test that a ValueError is raised if parent_place is provided without places."""
+    async def test_parent_place_no_places_raises(self):
         mock_client = Mock()
         with pytest.raises(
             ValueError,

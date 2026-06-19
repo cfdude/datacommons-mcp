@@ -1,0 +1,9 @@
+⚠ pm 0.0.0 → 0.3.0 since this repo was set up — run `/pm:upgrade` (CLAUDE.md rules and epic schema may need refreshing).
+
+CONDUCTOR STATE — where we are and what's next
+
+NOW: (no active epic set)
+
+RULES (pm): classify detours before fixing — minimal → fix+commit then `/pm:detour --minimal`; substantial → `/pm:detour` (own proposal + PUSH). After any state change, `/pm:status`. Resume via `/pm:resume` + reconcile gate. Mirror every PUSH/POP to a one-line Honcho memory.
+
+Manage with /pm:status · /pm:next · /pm:detour · /pm:resume, or the `conductor` skill.
