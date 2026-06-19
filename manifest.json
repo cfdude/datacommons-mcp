@@ -23,8 +23,28 @@
         "DC_API_KEY": "${user_config.api_key}",
         "DC_STORAGE_DIR": "${user_config.storage_dir}",
         "DC_SCREEN_ROW_THRESHOLD": "${user_config.screen_row_threshold}"
+      },
+      "platform_overrides": {
+        "win32": {
+          "command": "cmd",
+          "args": [
+            "/c",
+            "${__dirname}\\run_server.cmd"
+          ],
+          "env": {
+            "DC_API_KEY": "${user_config.api_key}",
+            "DC_STORAGE_DIR": "${user_config.storage_dir}",
+            "DC_SCREEN_ROW_THRESHOLD": "${user_config.screen_row_threshold}"
+          }
+        }
       }
     }
+  },
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "win32"
+    ]
   },
   "tools": [
     {

@@ -26,7 +26,9 @@ mkdir -p build
 # runs from source). rsync keeps this portable (macOS ships bash 3.2 without globstar).
 rsync -a --exclude='__pycache__/' --exclude='*.pyc' --exclude='*.pyo' \
     src/datacommons_mcp build/
-cp run_server.sh build/
+# Ship both launchers: run_server.sh (macOS/Linux) and run_server.cmd (Windows).
+# manifest.json selects per-platform via mcp_config.platform_overrides.
+cp run_server.sh run_server.cmd build/
 
 # Copy the dependency spec uv needs to resolve/build at runtime.
 # pyproject.toml + uv.lock pin the exact dependency versions (reproducible);
