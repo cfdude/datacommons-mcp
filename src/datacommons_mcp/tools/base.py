@@ -35,9 +35,24 @@ from ..utils.path_resolver import PathResolver
 
 logger = logging.getLogger(__name__)
 
-# Project/extension root: three levels up from tools/base.py
-# tools/base.py -> tools/ -> datacommons_mcp/ -> project_root/
-_PROJECT_ROOT = Path(__file__).parent.parent.parent
+
+def _find_project_root() -> Path:
+    """Locate the project/extension root (the directory containing ``pyproject.toml``).
+
+    Walks up from this file, so it is correct in BOTH the ``src/`` dev layout
+    (``src/datacommons_mcp/tools/base.py`` -> repo root) and the flattened
+    extension bundle (``datacommons_mcp/tools/base.py`` -> bundle root, where
+    build-extension.sh copies ``pyproject.toml``). Falls back to the directory
+    containing the ``datacommons_mcp`` package if no marker is found.
+    """
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        if (parent / "pyproject.toml").is_file():
+            return parent
+    return here.parent.parent.parent
+
+
+_PROJECT_ROOT = _find_project_root()
 
 
 def _load_env_with_fallback() -> None:

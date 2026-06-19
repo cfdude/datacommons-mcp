@@ -19,11 +19,13 @@ rm -f agent-toolkit.mcpb 2>/dev/null || true
 # Create build directory structure
 mkdir -p build
 
-# Copy the source code and shell entry point. Exclude Python bytecode caches —
-# they bloat the bundle and can be stale for the wrong interpreter (uv runs from
-# source). rsync keeps this portable (macOS ships bash 3.2 without globstar).
+# Copy the source code and shell entry point. The package lives under src/ (src
+# layout); copy the package itself so the bundle has `datacommons_mcp/` at its
+# root (run_server.py expects the package alongside lib/). Exclude Python bytecode
+# caches — they bloat the bundle and can be stale for the wrong interpreter (uv
+# runs from source). rsync keeps this portable (macOS ships bash 3.2 without globstar).
 rsync -a --exclude='__pycache__/' --exclude='*.pyc' --exclude='*.pyo' \
-    datacommons_mcp build/
+    src/datacommons_mcp build/
 cp run_server.sh build/
 
 # Copy the dependency spec uv needs to resolve/build at runtime.
