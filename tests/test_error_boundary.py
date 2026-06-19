@@ -11,7 +11,7 @@ from datacommons_mcp.exceptions import (
     InvalidInputError,
     NoDataFoundError,
 )
-from datacommons_mcp.servers.common import _GENERIC_ERROR_MESSAGE, tool_error_boundary
+from datacommons_mcp.tools.common import _GENERIC_ERROR_MESSAGE, tool_error_boundary
 
 # --- Unit tests: the context manager mapping ---
 
@@ -101,7 +101,7 @@ async def test_invalid_input_surfaces_actionable_message_to_client(_dc_env):
 async def test_unexpected_error_is_masked_to_client(monkeypatch, _dc_env):
     from fastmcp import Client
 
-    import datacommons_mcp.servers.observations as obs_mod
+    import datacommons_mcp.tools.observations as obs_mod
     from datacommons_mcp.fastmcp_server import mcp  # registers the tools on import
 
     async def _boom(*args, **kwargs):

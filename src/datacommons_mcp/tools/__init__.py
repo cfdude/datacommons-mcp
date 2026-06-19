@@ -11,11 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""FastMCP server modules for Data Commons MCP.
+"""MCP tool modules for Data Commons MCP.
 
-This package contains the FastMCP server implementation following
-FastMCP 3.0.0b1 patterns. Each module registers its tools with
-the shared `mcp` instance from base.py.
+This package contains the FastMCP tool implementations. Each module
+registers its tools with the shared `mcp` instance from base.py.
 """
 
 from .base import mcp

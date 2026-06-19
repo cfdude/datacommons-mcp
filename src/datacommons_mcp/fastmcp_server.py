@@ -32,13 +32,13 @@ if os.getcwd() == "/":
 
 # Import all tool modules to register their tools with the server
 # The @mcp.tool decorators in each module register the tools on import
-from .servers import (
+from .tools import (
     observations as _observations,  # noqa: F401
     search as _search,  # noqa: F401
 )
 
 # Import the server instance from base (this creates the mcp instance with lifespan)
-from .servers.base import mcp
+from .tools.base import mcp
 
 # Note: Unlike mcp-fred, we don't use progressive disclosure by default
 # since Data Commons only has two core tools. Both are always available.

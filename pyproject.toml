@@ -46,7 +46,7 @@ build-backend = "setuptools.build_meta"
 include-package-data = true
 
 [tool.setuptools.packages.find]
-where = ["."]
+where = ["src"]
 include = ["datacommons_mcp*"]
 
 [tool.setuptools.package-data]
@@ -58,6 +58,7 @@ version = {attr = "datacommons_mcp.version.__version__"}
 [tool.ruff]
 target-version = "py311"
 line-length = 100
+src = ["src", "tests"]
 exclude = [
     ".git",
     ".venv",
@@ -105,7 +106,7 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
     "S101",    # Use of assert
     "PLR2004", # Magic value used in comparison
 ]
-"datacommons_mcp/servers/**/*.py" = [
+"src/datacommons_mcp/tools/**/*.py" = [
     "TC001",  # Application import needed at runtime
     "TC002",  # Third-party import needed at runtime
 ]
