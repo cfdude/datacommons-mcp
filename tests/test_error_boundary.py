@@ -52,6 +52,13 @@ def test_keyerror_is_masked_no_leak():
     assert isinstance(ei.value.__cause__, KeyError)
 
 
+def test_indexerror_is_masked_no_leak():
+    with pytest.raises(ToolError) as ei, tool_error_boundary():
+        [][99]  # IndexError is a LookupError subclass
+    assert str(ei.value) == _GENERIC_ERROR_MESSAGE
+    assert isinstance(ei.value.__cause__, IndexError)
+
+
 def test_unexpected_error_is_masked_no_leak():
     with pytest.raises(ToolError) as ei, tool_error_boundary():
         raise RuntimeError("internal secret detail")
@@ -109,3 +116,4 @@ async def test_unexpected_error_is_masked_to_client(monkeypatch, _dc_env):
                 {"variable_dcid": "Count_Person", "place_dcid": "geoId/06"},
             )
     assert "internal detail xyz" not in str(ei.value)
+    assert str(ei.value) == _GENERIC_ERROR_MESSAGE  # masked to the generic message, not empty/other
