@@ -17,7 +17,7 @@ import re
 from datetime import datetime
 from enum import Enum
 from functools import lru_cache
-from typing import Any
+from typing import Any, Literal
 
 from datacommons_client.endpoints.response import ObservationResponse
 from datacommons_client.models.observation import Observation, OrderedFacet
@@ -361,3 +361,39 @@ class ObservationPage(ToolResponseBaseModel):
     def has_more_pages(self) -> bool:
         """Returns True if there are more pages to fetch."""
         return self.next_token is not None
+
+
+class ObservationsScreenResult(ToolResponseBaseModel):
+    """Inline-data result from get_observations when the response is small enough for screen."""
+
+    output_mode: Literal["screen"] = "screen"
+    data: ObservationToolResponse = Field(description="The observation data, returned inline.")
+
+
+class ObservationsFileResult(ToolResponseBaseModel):
+    """File-reference result from get_observations when the response is large or paginated.
+
+    The observation rows are written to a CSV/JSON file (NOT inlined); this carries the
+    path and export metadata. The server runs locally (stdio subprocess), so `file_path`
+    is a real file on the caller's machine.
+    """
+
+    output_mode: Literal["file"] = "file"
+    file_path: str | None = Field(
+        default=None, description="Path to the written export file (server-local)."
+    )
+    rows_written: int = Field(description="Total observation rows written to the file.")
+    pages_fetched: int = Field(description="Number of API pages fetched during export.")
+    file_size_bytes: int = Field(description="Size of the written file in bytes.")
+    unique_places_count: int = Field(description="Number of distinct places in the export.")
+    format: Literal["csv", "json"] = Field(description="The export file format.")
+    companion_files: dict[str, str] | None = Field(
+        default=None, description="Optional companion files (multi-file export); absent today."
+    )
+    multi_file: bool | None = Field(
+        default=None, description="Present and True when multi-file export was requested."
+    )
+
+
+# Tagged union (keyed on the `output_mode` literal) of the two get_observations outcomes.
+ObservationsResult = ObservationsScreenResult | ObservationsFileResult

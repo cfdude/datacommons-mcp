@@ -19,7 +19,11 @@ from typing import Literal
 from fastmcp.server.context import Context
 from fastmcp.server.dependencies import CurrentContext
 
-from ..data_models.observations import ObservationDateType
+from ..data_models.observations import (
+    ObservationDateType,
+    ObservationsFileResult,
+    ObservationsScreenResult,
+)
 from ..services import get_observations_paginated as get_observations_service
 from ..utils.output_handler import OutputHandler, OutputHandlerConfig
 from .base import mcp
@@ -42,7 +46,7 @@ async def get_observations(
     output_format: Literal["csv", "json"] = "csv",
     multi_file: bool = False,
     ctx: Context = CurrentContext(),
-) -> dict:
+) -> ObservationsScreenResult | ObservationsFileResult:
     """Fetches observations for a statistical variable from Data Commons.
 
     **CRITICAL: Always validate variable-place combinations first**
@@ -110,17 +114,24 @@ async def get_observations(
       multi_file (bool, optional): If True, creates companion files with place and source metadata (default: False).
 
     Returns:
-        For screen mode:
-        - `output_mode`: "screen"
-        - `data`: The observation data including variable, place_observations, source_metadata, and alternative_sources.
+        One of two typed results, tagged by `output_mode`:
 
-        For file mode:
+        Screen mode (`ObservationsScreenResult`, small responses):
+        - `output_mode`: "screen"
+        - `data`: The observation data (variable, place_observations, source_metadata,
+          alternative_sources), returned inline.
+
+        File mode (`ObservationsFileResult`, large or paginated responses — the rows are
+        written to a file and NOT inlined; the server runs locally so the path is usable):
         - `output_mode`: "file"
-        - `file_path`: Path to the created CSV/JSON file.
+        - `file_path`: Path to the created file.
+        - `format`: File format ("csv" by default, or "json").
         - `rows_written`: Number of data rows written.
         - `pages_fetched`: Number of API pages fetched.
-        - `file_size_bytes`: Size of the output file.
+        - `file_size_bytes`: Size of the output file in bytes.
         - `unique_places_count`: Number of unique places in the data.
+        - `multi_file`: True when multi-file export was requested (otherwise absent).
+        - `companion_files`: Optional map of companion files (absent unless populated).
 
     """
     await ctx.debug(f"get_observations called: variable={variable_dcid}, place={place_dcid}")
