@@ -517,6 +517,8 @@ class TestDCClientFetchIndicatorsNew:
                                 {"dcid": "Var_Low", "name": "Low", "score": 0.10},
                                 {"dcid": "Var_High", "name": "High", "score": 0.90},
                                 {"dcid": "Var_Mid", "name": "Mid", "score": 0.50},
+                                # Null score must not crash the sort (treated as 0.0)
+                                {"dcid": "Var_Null", "name": "Null", "score": None},
                             ],
                         }
                     ],
@@ -527,9 +529,9 @@ class TestDCClientFetchIndicatorsNew:
         # Act
         results_by_search, _ = client._transform_search_indicators_response(api_response)
 
-        # Assert: ordered by score descending
+        # Assert: ordered by score descending; null score sorts last (0.0)
         dcids = [ind.dcid for ind in results_by_search["health-base_uae_mem"]]
-        assert dcids == ["Var_High", "Var_Mid", "Var_Low"]
+        assert dcids == ["Var_High", "Var_Mid", "Var_Low", "Var_Null"]
 
     def test_transform_response_topic_by_typeof_without_prefix(self, client: DCClient):
         """A typeOf=='Topic' indicator without the topic DCID prefix is surfaced as a topic.
@@ -962,6 +964,50 @@ class TestDCClientFetchIndicatorsNew:
             # "Count_Household" name should be filtered out as the variable was dropped
             "MortalityRate_Person_MedicalCondition": "Mortality Rate",
         }
+
+    @pytest.mark.asyncio
+    @patch("datacommons_mcp.clients.asyncio.to_thread")
+    async def test_fetch_indicators_new_cross_task_merge_order(
+        self, mock_to_thread, client: DCClient
+    ):
+        """Cross-task merge order follows the endpoint's queryResults order (Gate-2 I-1).
+
+        Pins the contract: the endpoint is authoritative for ranking; the merge does NOT
+        re-impose the legacy "task order" (the shim's place-specific-task-first behavior).
+        """
+        # Arrange: endpoint returns qB BEFORE qA, the reverse of search_tasks order.
+        mock_response = Mock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.json.return_value = {
+            "queryResults": [
+                {
+                    "query": "qB",
+                    "indexResults": [
+                        {"index": "base_uae_mem", "results": [{"dcid": "Var_B", "name": "B"}]}
+                    ],
+                },
+                {
+                    "query": "qA",
+                    "indexResults": [
+                        {"index": "base_uae_mem", "results": [{"dcid": "Var_A", "name": "A"}]}
+                    ],
+                },
+            ]
+        }
+        mock_to_thread.return_value = mock_response
+        # No places -> no existence filtering, isolating merge order.
+        search_tasks = [
+            SearchTask(query="qA", place_dcids=[]),
+            SearchTask(query="qB", place_dcids=[]),
+        ]
+
+        # Act
+        search_result, _ = await client._fetch_indicators_new(
+            search_tasks=search_tasks, per_search_limit=10, include_topics=True
+        )
+
+        # Assert: merged order follows the endpoint response (qB, qA), NOT task order (qA, qB)
+        assert list(search_result.variables.keys()) == ["Var_B", "Var_A"]
 
     @pytest.mark.asyncio
     @patch("datacommons_mcp.clients.asyncio.to_thread")

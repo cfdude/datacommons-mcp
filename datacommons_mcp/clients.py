@@ -561,9 +561,10 @@ class DCClient:
                 # (the SearchTopic/SearchVariable models carry no score field). The live
                 # endpoint is already score-ranked; this makes within-search ordering
                 # explicit and robust. Stable sort: items lacking "score" keep their order.
+                # `or 0.0` guards an explicit null score (which would break the comparison).
                 ranked_results = sorted(
                     index_result.get("results", []),
-                    key=lambda ind: ind.get("score", 0.0),
+                    key=lambda ind: ind.get("score") or 0.0,
                     reverse=True,
                 )
                 for indicator in ranked_results:

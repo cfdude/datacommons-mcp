@@ -20,7 +20,11 @@ Migrating to the native flow SHALL NOT drop any field of the tool's `SearchRespo
 
 #### Scenario: Results preserve score-descending order within a search
 - **WHEN** the native flow transforms a single search's API results (the live endpoint returns results score-descending)
-- **THEN** that search's results are ordered by score descending (the transform sorts the raw API result dicts by `score` before building models), matching the prior shim's behavior. Ordering is per-search; across multiple search tasks results are concatenated in task order (as the legacy merge did) — there is no global cross-task re-sort
+- **THEN** that search's results are ordered by score descending (the transform sorts the raw API result dicts by `score` before building models), matching the prior shim's behavior
+
+#### Scenario: Cross-search ordering follows the endpoint's response
+- **WHEN** results from multiple search tasks are merged into the final response (deduplicated, first occurrence wins)
+- **THEN** the cross-search order follows the order the search-indicators endpoint returns its query results in (the endpoint is authoritative for ranking). The legacy shim's place-specific-task-first ordering is intentionally NOT preserved — data is unaffected (each indicator carries its own `places_with_data`); only cross-task presentation order changes
 
 ### Requirement: Topic results are no longer silently dropped
 The native flow SHALL surface topics identified by `typeOf == "Topic"` and topics that are not present in the local topic cache (both were dropped by the shim).
