@@ -20,24 +20,16 @@ the shared `mcp` instance from base.py.
 
 from .base import mcp
 from .common import (
-    OutputOptions,
-    extract_output_options,
-    format_api_error,
-    format_timestamp,
     get_client,
     get_config,
-    get_output_handler,
+    tool_error_boundary,
 )
 
 # Tool modules are imported by fastmcp_server.py to register their tools
 
 __all__ = [
-    "OutputOptions",
-    "extract_output_options",
-    "format_api_error",
-    "format_timestamp",
     "get_client",
     "get_config",
-    "get_output_handler",
     "mcp",
+    "tool_error_boundary",
 ]

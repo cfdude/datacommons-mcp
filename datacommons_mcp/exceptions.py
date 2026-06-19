@@ -31,6 +31,10 @@ class DataLookupError(_ErrorStrMixin, LookupError):
     """Raised when there is an error during a data lookup operation."""
 
 
+class InvalidInputError(_ErrorStrMixin, ValueError):
+    """Raised when a tool/service receives invalid client input."""
+
+
 class InvalidDateFormatError(_ErrorStrMixin, ValueError):
     """Raised when a date string has an invalid format."""
 

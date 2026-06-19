@@ -15,7 +15,6 @@
 
 import json
 import logging
-import sys
 from typing import Union
 
 from fastmcp.server.context import Context
@@ -24,7 +23,7 @@ from fastmcp.server.dependencies import CurrentContext
 from ..data_models.search import SearchResponse
 from ..services import search_indicators as search_indicators_service
 from .base import mcp
-from .common import get_client
+from .common import get_client, tool_error_boundary
 
 logger = logging.getLogger(__name__)
 
@@ -296,40 +295,35 @@ async def search_indicators(
     """
     await ctx.debug(f"search_indicators called with query='{query}'")
 
-    # Get client from lifespan context
-    client = get_client(ctx)
+    with tool_error_boundary():
+        # Get client from lifespan context
+        client = get_client(ctx)
 
-    # WORKAROUND: MCP protocol sometimes sends arrays as JSON strings
-    # If places is a string that looks like a JSON array, parse it
-    if places is not None and isinstance(places, str):
-        try:
-            parsed_places = json.loads(places)
-            if isinstance(parsed_places, list):
-                places = parsed_places
-                print(
-                    f"Deserialized places parameter from JSON string: {places}",
-                    file=sys.stderr,
-                )
-        except (json.JSONDecodeError, TypeError):
-            # If it fails to parse, keep the original value
-            print(
-                f"Warning: places parameter is a string but not valid JSON: {places}",
-                file=sys.stderr,
-            )
+        # WORKAROUND: MCP protocol sometimes sends arrays as JSON strings
+        # If places is a string that looks like a JSON array, parse it
+        if places is not None and isinstance(places, str):
+            try:
+                parsed_places = json.loads(places)
+                if isinstance(parsed_places, list):
+                    places = parsed_places
+                    logger.debug("Deserialized places parameter from JSON string: %s", places)
+            except (json.JSONDecodeError, TypeError):
+                # If it fails to parse, keep the original value
+                logger.debug("places parameter is a string but not valid JSON: %s", places)
 
-    # Call the real search_indicators service
-    response: SearchResponse = await search_indicators_service(
-        client=client,
-        query=query,
-        places=places,
-        parent_place=parent_place,
-        per_search_limit=per_search_limit,
-        include_topics=include_topics,
-        maybe_bilateral=maybe_bilateral,
-    )
+        # Call the real search_indicators service
+        response: SearchResponse = await search_indicators_service(
+            client=client,
+            query=query,
+            places=places,
+            parent_place=parent_place,
+            per_search_limit=per_search_limit,
+            include_topics=include_topics,
+            maybe_bilateral=maybe_bilateral,
+        )
 
-    # Dump the Pydantic model to a dictionary
-    return response.model_dump(exclude_none=True)
+        # Dump the Pydantic model to a dictionary
+        return response.model_dump(exclude_none=True)
 
 
 __all__ = ["search_indicators"]

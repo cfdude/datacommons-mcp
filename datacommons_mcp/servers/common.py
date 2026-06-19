@@ -15,25 +15,42 @@
 
 from __future__ import annotations
 
-import datetime as dt
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+import logging
+from contextlib import contextmanager
+from typing import TYPE_CHECKING
+
+from fastmcp.exceptions import ToolError
+
+from ..exceptions import (
+    DataLookupError,
+    InvalidDateFormatError,
+    InvalidDateRangeError,
+    InvalidInputError,
+    NoDataFoundError,
+)
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from fastmcp.server.context import Context
 
     from ..clients import DCClient
     from ..config import AppConfig
-    from ..utils.output_handler import OutputHandler
 
+logger = logging.getLogger(__name__)
 
-@dataclass
-class OutputOptions:
-    """Options controlling how tool results are returned."""
+_GENERIC_ERROR_MESSAGE = "An internal error occurred while processing the request."
 
-    output: str = "auto"  # auto, screen, file
-    format: str = "csv"  # csv, json
-    multi_file: bool = False
+# Domain exceptions that carry actionable, client-safe messages. Caught
+# explicitly (NOT the broad ValueError/LookupError base classes) so that
+# pydantic ValidationError / KeyError / IndexError stay masked, not leaked.
+_CLIENT_FACING_ERRORS = (
+    InvalidInputError,
+    DataLookupError,
+    NoDataFoundError,
+    InvalidDateFormatError,
+    InvalidDateRangeError,
+)
 
 
 def get_client(ctx: Context) -> DCClient:
@@ -46,47 +63,26 @@ def get_config(ctx: Context) -> AppConfig:
     return ctx.lifespan_context["config"]
 
 
-def get_output_handler(ctx: Context) -> OutputHandler:
-    """Get the output handler from lifespan context."""
-    return ctx.lifespan_context["output_handler"]
+@contextmanager
+def tool_error_boundary() -> Iterator[None]:
+    """Surface domain errors to clients, mask everything else.
+
+    - An existing ``ToolError`` is re-raised unchanged.
+    - A known client-facing domain exception becomes a ``ToolError`` carrying
+      its message (so the client sees the actionable detail).
+    - Any other exception is logged and re-raised as a generic ``ToolError``,
+      so internal details (pydantic ``ValidationError``, ``KeyError``, bugs)
+      are not leaked.
+    """
+    try:
+        yield
+    except ToolError:
+        raise
+    except _CLIENT_FACING_ERRORS as e:
+        raise ToolError(str(e)) from e
+    except Exception as e:
+        logger.exception("Unexpected error in tool: %s", e)
+        raise ToolError(_GENERIC_ERROR_MESSAGE) from e
 
 
-def extract_output_options(
-    output: str | None = None,
-    format: str | None = None,
-    multi_file: bool = False,
-) -> OutputOptions:
-    """Create OutputOptions from tool parameters."""
-    return OutputOptions(
-        output=output or "auto",
-        format=format or "csv",
-        multi_file=multi_file,
-    )
-
-
-def format_api_error(error: Any) -> dict[str, Any]:
-    """Format an API error for tool response."""
-    if hasattr(error, "to_dict"):
-        return error.to_dict()
-    return {
-        "error": {
-            "code": "API_ERROR",
-            "message": str(error),
-        }
-    }
-
-
-def format_timestamp() -> str:
-    """Generate a timestamp string for filenames."""
-    return dt.datetime.now(dt.UTC).strftime("%Y%m%d_%H%M%S")
-
-
-__all__ = [
-    "OutputOptions",
-    "extract_output_options",
-    "format_api_error",
-    "format_timestamp",
-    "get_client",
-    "get_config",
-    "get_output_handler",
-]
+__all__ = ["get_client", "get_config", "tool_error_boundary"]
