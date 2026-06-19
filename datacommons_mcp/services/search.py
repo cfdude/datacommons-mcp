@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 import logging
 from typing import NamedTuple
 
@@ -21,10 +20,7 @@ from datacommons_mcp.data_models.search import (
     NodeInfo,
     ResolvedPlace,
     SearchResponse,
-    SearchResult,
     SearchTask,
-    SearchTopic,
-    SearchVariable,
 )
 from datacommons_mcp.exceptions import DataLookupError, InvalidInputError
 
@@ -100,33 +96,33 @@ async def search_indicators(
         maybe_bilateral=maybe_bilateral,
     )
 
-    # Use search-vector or temp impl of search-indicators endpoint
-    search_result = await _search_vector(
-        client=client,
+    # Fetch results from the native /api/nl/search-indicators flow. This returns
+    # topics, variables, and indicator name mappings already resolved.
+    search_resp = await client.search_indicators(
         search_tasks=search_tasks,
         per_search_limit=per_search_limit,
         include_topics=include_topics,
     )
 
-    # Collect all DCIDs for lookups
-    all_dcids = _collect_all_dcids(search_result, search_tasks)
+    # client.search_indicators does NOT return place type-mappings or the resolved
+    # parent, so the service still resolves place metadata (names + types) for the
+    # query places + parent and rebuilds those fields.
+    query_place_dcids = set(place_context.query_place_dcids_map.values())
+    place_dcids = set(query_place_dcids)
     if place_context.parent_place_dcid:
-        all_dcids.add(place_context.parent_place_dcid)
+        place_dcids.add(place_context.parent_place_dcid)
+    place_lookups = await _fetch_and_update_lookups(client, list(place_dcids))
 
-    # Fetch lookups
-    lookups = await _fetch_and_update_lookups(client, list(all_dcids))
-
-    place_dcids = set(place_context.query_place_dcids_map.values())
-    dcid_name_mappings = {}
+    dcid_name_mappings = dict(search_resp.dcid_name_mappings)
     dcid_place_type_mappings = {}
-    for dcid, info in lookups.items():
+    for dcid, info in place_lookups.items():
         dcid_name_mappings[dcid] = info.name
-        if dcid in place_dcids:
+        if dcid in query_place_dcids:
             dcid_place_type_mappings[dcid] = info.type_of
 
     resolved_parent_place = None
     if place_context.parent_place_dcid:
-        parent_info = lookups.get(place_context.parent_place_dcid)
+        parent_info = place_lookups.get(place_context.parent_place_dcid)
         if parent_info:
             resolved_parent_place = ResolvedPlace(
                 dcid=place_context.parent_place_dcid,
@@ -134,13 +130,13 @@ async def search_indicators(
                 type_of=parent_info.type_of,
             )
 
-    # Create unified response
+    # Create unified response (topics/variables come from the native flow)
     return SearchResponse(
         status="SUCCESS",
         dcid_name_mappings=dcid_name_mappings,
         dcid_place_type_mappings=dcid_place_type_mappings,
-        topics=list(search_result.topics.values()),
-        variables=list(search_result.variables.values()),
+        topics=search_resp.topics,
+        variables=search_resp.variables,
         resolved_parent_place=resolved_parent_place,
     )
 
@@ -245,64 +241,6 @@ async def _resolve_places(
         raise DataLookupError(msg) from e
 
 
-def _collect_all_dcids(search_result: SearchResult, search_tasks: list[SearchTask]) -> set[str]:
-    """Collect all DCIDs that need to be looked up.
-
-    Args:
-        search_result: The search result containing topics and variables
-        search_tasks: List of search tasks containing place DCIDs
-
-    Returns:
-        Set of all DCIDs that need lookup (topics, variables, and places)
-    """
-    all_dcids = set()
-
-    # Add topic DCIDs and their members
-    for topic in search_result.topics.values():
-        all_dcids.add(topic.dcid)
-        all_dcids.update(topic.member_topics)
-        all_dcids.update(topic.member_variables)
-
-    # Add variable DCIDs
-    all_dcids.update(search_result.variables.keys())
-
-    # Add place DCIDs
-    for search_task in search_tasks:
-        all_dcids.update(search_task.place_dcids)
-
-    return all_dcids
-
-
-async def _search_vector(
-    client: DCClient,
-    search_tasks: list[SearchTask],
-    per_search_limit: int = 10,
-    *,
-    include_topics: bool,
-) -> SearchResult:
-    """Search for indicators matching a query, optionally filtered by place existence.
-
-    Returns:
-        SearchResult: Typed result with topics and variables dictionaries
-    """
-
-    # Execute parallel searches
-    tasks = []
-    for search_task in search_tasks:
-        task = client.fetch_indicators(
-            query=search_task.query,
-            place_dcids=search_task.place_dcids,
-            max_results=per_search_limit,
-            include_topics=include_topics,
-        )
-        tasks.append(task)
-
-    # Wait for all searches to complete
-    results = await asyncio.gather(*tasks)
-
-    return await _merge_search_results(results)
-
-
 async def _fetch_and_update_lookups(client: DCClient, dcids: list[str]) -> dict[str, NodeInfo]:
     """Fetch entity information for all DCIDs and return as nodes dictionary."""
     if not dcids:
@@ -313,40 +251,3 @@ async def _fetch_and_update_lookups(client: DCClient, dcids: list[str]) -> dict[
     except Exception:
         # If fetching fails, return empty dict (not an error)
         return {}
-
-
-async def _merge_search_results(results: list[dict]) -> SearchResult:
-    """Union results from multiple search calls."""
-
-    # Collect all topics and variables
-    all_topics: dict[str, SearchTopic] = {}
-    all_variables: dict[str, SearchVariable] = {}
-
-    for result in results:
-        descriptions = result.get("descriptions", {})
-        alternate_descriptions = result.get("alternate_descriptions", {})
-        # Union topics
-        for topic in result.get("topics", []):
-            topic_dcid = topic["dcid"]
-            if topic_dcid not in all_topics:
-                all_topics[topic_dcid] = SearchTopic(
-                    dcid=topic["dcid"],
-                    member_topics=topic.get("member_topics", []),
-                    member_variables=topic.get("member_variables", []),
-                    places_with_data=topic.get("places_with_data"),
-                    description=descriptions.get(topic_dcid),
-                    alternate_descriptions=alternate_descriptions.get(topic_dcid),
-                )
-
-        # Union variables
-        for variable in result.get("variables", []):
-            var_dcid = variable["dcid"]
-            if var_dcid not in all_variables:
-                all_variables[var_dcid] = SearchVariable(
-                    dcid=variable["dcid"],
-                    places_with_data=variable.get("places_with_data", []),
-                    description=descriptions.get(var_dcid),
-                    alternate_descriptions=alternate_descriptions.get(var_dcid),
-                )
-
-    return SearchResult(topics=all_topics, variables=all_variables)

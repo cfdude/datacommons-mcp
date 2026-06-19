@@ -17,7 +17,6 @@ Provides classes for managing connections to both base and custom Data Commons i
 """
 
 import asyncio
-import json
 import logging
 import re
 from pathlib import Path
@@ -76,8 +75,6 @@ class DCClient:
         sv_search_base_url: str = "https://datacommons.org",
         topic_store: TopicStore | None = None,
         _place_like_constraints: list[str] | None = None,
-        *,
-        use_search_indicators_endpoint: bool = True,
     ) -> None:
         """
         Initialize the DCClient with a DataCommonsClient and search configuration.
@@ -100,7 +97,6 @@ class DCClient:
         # Precompute search indices to validate configuration at instantiation time
         self.search_indices = self._compute_search_indices()
         self.sv_search_base_url = sv_search_base_url
-        self.use_search_indicators_endpoint = use_search_indicators_endpoint
         self.variable_cache = LruCache(128)
 
         if topic_store is None:
@@ -377,9 +373,8 @@ class DCClient:
         include_topics: bool,
     ) -> SearchResponse:
         """
-        Handles the logic for fetching indicators using the new /api/nl/search-indicators endpoint.
-        This method calls the new search logic, transforms the result, and formats it
-        to match the expected output structure of the public fetch_indicators method.
+        Fetch indicators from the /api/nl/search-indicators endpoint and return a
+        SearchResponse with topics, variables, and resolved name mappings.
         """
         logger.info("Querying search-indicators for %d task(s)", len(search_tasks))
         search_result, dcid_name_mappings = await self._fetch_indicators_new(
@@ -562,7 +557,16 @@ class DCClient:
                 search_key = f"{query}-{index_name}"
                 indicators_for_search: list[SearchIndicator] = []
 
-                for indicator in index_result.get("results", []):
+                # Sort the raw API results by score descending before building models
+                # (the SearchTopic/SearchVariable models carry no score field). The live
+                # endpoint is already score-ranked; this makes within-search ordering
+                # explicit and robust. Stable sort: items lacking "score" keep their order.
+                ranked_results = sorted(
+                    index_result.get("results", []),
+                    key=lambda ind: ind.get("score", 0.0),
+                    reverse=True,
+                )
+                for indicator in ranked_results:
                     dcid = indicator.get("dcid")
                     if not dcid:
                         continue
@@ -607,8 +611,6 @@ class DCClient:
 
         If include_topics is false, we return all descendant variables.
         If include_topics is true, we return member topics and member variables.
-
-        Note: This has the same logic as _get_topics_members_with_existence but operates on SearchTopic objects.
         """
         if not topics or not self.topic_store:
             return
@@ -657,7 +659,12 @@ class DCClient:
 
         # Check if any direct variable exists for any of the places
         for place_dcid in place_dcids:
-            place_variables = self.variable_cache.get(place_dcid)
+            # Union place-like statvars with the cache (None-safe), matching the
+            # shared existence helpers, so place-like-only entities are counted.
+            # TODO (@jm-rivera): Remove place-like union once new search endpoint is live.
+            place_variables = (
+                self.variable_cache.get(place_dcid) or set()
+            ) | self._place_like_statvar_store.get(place_dcid, set())
             if place_variables and any(
                 var in place_variables for var in topic_data.member_variables
             ):
@@ -719,400 +726,6 @@ class DCClient:
                 expanded_variables[indicator.dcid] = indicator
 
         return list(expanded_variables.values())
-
-    #
-    # Legacy Search Indicators Endpoint (/api/nl/search-vector)
-    #
-    async def search_svs(
-        self, queries: list[str], *, skip_topics: bool = True, max_results: int = 10
-    ) -> dict:
-        results_map = {}
-        skip_topics_param = "&skip_topics=true" if skip_topics else ""
-        endpoint_url = f"{self.sv_search_base_url}/api/nl/search-vector"
-        headers = {"Content-Type": "application/json", **SURFACE_HEADER}
-
-        # Use precomputed indices based on configured search scope
-        indices = self.search_indices
-
-        for query in queries:
-            # Search all indices in a single API call using comma-separated list
-            indices_param = ",".join(indices)
-            api_endpoint = f"{endpoint_url}?idx={indices_param}{skip_topics_param}"
-            payload = {"queries": [query]}
-
-            try:
-                response = requests.post(api_endpoint, data=json.dumps(payload), headers=headers)
-                response.raise_for_status()
-                data = response.json()
-                results = data.get("queryResults", {})
-
-                if query in results and "SV" in results[query] and "CosineScore" in results[query]:
-                    sv_list = results[query]["SV"]
-                    score_list = results[query]["CosineScore"]
-
-                    # Return results in API order (no ranking)
-                    all_results = [
-                        {"SV": sv_list[i], "CosineScore": score_list[i]}
-                        for i in range(len(sv_list))
-                    ]
-                    results_map[query] = all_results[:max_results]  # Limit to max_results
-                else:
-                    results_map[query] = []
-
-            except Exception as e:
-                logger.error("An unexpected error occurred for query '%s': %s", query, e)
-                results_map[query] = []
-
-        return results_map
-
-    async def _call_search_indicators_temp(
-        self, queries: list[str], *, max_results: int = 10
-    ) -> dict:
-        """
-        Temporary method that mirrors search_svs but calls the new search-indicators endpoint.
-
-        This method takes the same arguments and returns the same structure as search_svs,
-        but uses the new /api/nl/search-indicators endpoint instead of /api/nl/search-vector.
-
-        This method is temporary to create a minimal delta between the two endpoints to minimize the impact of the change.
-        After the 1.0 release, this method should be removed in favor of a more complete implementation.
-
-        Returns:
-            Dictionary mapping query strings to lists of results with 'SV' and 'CosineScore' keys
-        """
-        results_map = {}
-        endpoint_url = f"{self.sv_search_base_url}/api/nl/search-indicators"
-        headers = {"Content-Type": "application/json", **SURFACE_HEADER}
-
-        # Use precomputed indices based on configured search scope
-        indices = self.search_indices
-
-        for query in queries:
-            # Prepare parameters for the new endpoint
-            params = {
-                "queries": [query],
-                "limit_per_index": max_results,
-                "index": indices,
-            }
-
-            try:
-                response = await asyncio.to_thread(
-                    requests.get,
-                    endpoint_url,
-                    params=params,
-                    headers=headers,
-                )
-                response.raise_for_status()
-                api_response = response.json()
-
-                # Transform the response to match search_svs format
-                transformed_results = self._transform_search_indicators_to_svs_format(
-                    api_response, max_results=max_results
-                )
-                results_map[query] = transformed_results
-
-            except Exception as e:
-                logger.error("An unexpected error occurred for query '%s': %s", query, e)
-                results_map[query] = []
-
-        return results_map
-
-    def _transform_search_indicators_to_svs_format(
-        self, api_response: dict, *, max_results: int = 10
-    ) -> list[dict]:
-        """
-        Transform search-indicators response to match search_svs format.
-
-        Returns:
-            List of dictionaries with 'SV' and 'CosineScore' keys
-        """
-        results = []
-        query_results = api_response.get("queryResults", [])
-
-        for query_result in query_results:
-            for index_result in query_result.get("indexResults", []):
-                for indicator in index_result.get("results", []):
-                    dcid = indicator.get("dcid")
-                    if not dcid:
-                        continue
-
-                    # Extract score (default to 0.0 if not present)
-                    score = indicator.get("score", 0.0)
-
-                    results.append(
-                        {
-                            "SV": dcid,
-                            "CosineScore": score,
-                            "description": indicator.get("description"),
-                            "alternate_descriptions": indicator.get("search_descriptions"),
-                        }
-                    )
-
-        # Sort by score descending, then limit results
-        results.sort(key=lambda x: x["CosineScore"], reverse=True)
-        return results[:max_results]
-
-    async def fetch_indicators(
-        self,
-        query: str,
-        place_dcids: list[str] = None,
-        max_results: int = 10,
-        *,
-        include_topics: bool = True,
-    ) -> dict:
-        """
-        Search for indicators matching a query, optionally filtered by place existence.
-        When place_dcids are specified, filter the results by place existence.
-
-        Returns:
-            Dictionary with topics, variables, and lookups
-        """
-        query = query.strip()
-
-        # An empty query is treated as a request to browse for root topics.
-        if not query:
-            if self.topic_store and self.topic_store.root_topic_dcids:
-                search_results = {
-                    "topics": self.topic_store.root_topic_dcids,
-                }
-            else:
-                search_results = {}
-
-        else:
-            # Search for more results than we need to ensure we get enough topics and variables.
-            # The factor of 2 is arbitrary and we can adjust it (make it configurable?) as needed.
-            max_search_results = max_results * 2
-            search_results = await self._search_vector(
-                query=query,
-                max_results=max_search_results,
-                include_topics=include_topics,
-            )
-
-        # Separate topics and variables
-        topics = search_results.get("topics", [])
-        variables = search_results.get("variables", [])
-
-        # Apply existence filtering if places are specified
-        if place_dcids:
-            # Ensure place variables are cached for all places in parallel
-            await asyncio.gather(
-                *(
-                    asyncio.to_thread(self._ensure_place_variables_cached, place_dcid)
-                    for place_dcid in place_dcids
-                )
-            )
-
-            # Filter topics and variables by existence (OR logic)
-            topics = self._filter_topics_by_existence(topics, place_dcids)
-            variables = self._filter_variables_by_existence(variables, place_dcids)
-        else:
-            # No existence checks performed, convert to simple lists
-            topics = [{"dcid": topic} for topic in topics]
-            variables = [{"dcid": var} for var in variables]
-
-        # Limit results
-        topics = topics[:max_results]
-        variables = variables[:max_results]
-
-        # Get member information for topics
-        topic_members = self._get_topics_members_with_existence(
-            topics, include_topics=include_topics, place_dcids=place_dcids
-        )
-
-        # Build response structure
-        return {
-            "topics": [
-                {
-                    "dcid": topic_info["dcid"],
-                    "member_topics": topic_members.get(topic_info["dcid"], {}).get(
-                        "member_topics", []
-                    ),
-                    "member_variables": topic_members.get(topic_info["dcid"], {}).get(
-                        "member_variables", []
-                    ),
-                    **(
-                        {"places_with_data": topic_info["places_with_data"]}
-                        if "places_with_data" in topic_info
-                        else {}
-                    ),
-                }
-                for topic_info in topics
-            ],
-            "variables": [
-                {
-                    "dcid": var_info["dcid"],
-                    **(
-                        {"places_with_data": var_info["places_with_data"]}
-                        if "places_with_data" in var_info
-                        else {}
-                    ),
-                }
-                for var_info in variables
-            ],
-            "lookups": self._build_lookups(
-                [topic_info["dcid"] for topic_info in topics]
-                + [var_info["dcid"] for var_info in variables]
-            ),
-            "descriptions": search_results.get("descriptions", {}),
-            "alternate_descriptions": search_results.get("alternate_descriptions", {}),
-        }
-
-    async def _search_vector(
-        self, query: str, max_results: int = 10, *, include_topics: bool = True
-    ) -> dict:
-        """
-        Search for topics and variables using the search-indicators or search-vector endpoint.
-        """
-        # Always include topics since we need to expand topics to variables.
-        if self.use_search_indicators_endpoint:
-            logger.info("Calling search-indicators endpoint for: '%s'", query)
-            search_results = await self._call_search_indicators_temp(
-                queries=[query],
-                max_results=max_results,
-            )
-        else:
-            logger.info("Calling search-vector endpoint for: '%s'", query)
-            search_results = await self.search_svs(
-                [query], skip_topics=False, max_results=max_results
-            )
-
-        results = search_results.get(query, [])
-
-        topics = []
-        variables = []
-        descriptions: dict[str, str] = {}
-        alternate_descriptions: dict[str, list[str]] = {}
-        # Track variables to avoid duplicates when expanding topics to variables.
-        variable_set: set[str] = set()
-
-        for result in results:
-            sv_dcid = result.get("SV", "")
-            if not sv_dcid:
-                continue
-
-            # Check if it's a topic (contains "/topic/")
-            if DCID_TOPIC_PREFIX in sv_dcid:
-                # Only include topics that exist in the topic store
-                if self.topic_store and sv_dcid in self.topic_store.topics_by_dcid:
-                    # If topics are not included, expand topics to variables.
-                    if not include_topics:
-                        for variable in self.topic_store.get_topic_descendant_variables(sv_dcid):
-                            if variable not in variable_set:
-                                variables.append(variable)
-                                variable_set.add(variable)
-                    else:
-                        topics.append(sv_dcid)
-            else:
-                variables.append(sv_dcid)
-                variable_set.add(sv_dcid)
-
-            descriptions[sv_dcid] = result.get("description")
-            alternate_descriptions[sv_dcid] = result.get("alternate_descriptions")
-
-        return {
-            "topics": topics,
-            "variables": variables,
-            "descriptions": descriptions,
-            "alternate_descriptions": alternate_descriptions,
-        }
-
-    def _filter_variables_by_existence(
-        self, variable_dcids: list[str], place_dcids: list[str]
-    ) -> list[dict]:
-        """Filter variables by existence for the given places (OR logic)."""
-        if not variable_dcids or not place_dcids:
-            return []
-
-        # Check which variables exist for any of the places
-        existing_variables = []
-        for var in variable_dcids:
-            places_with_data = self._get_variable_places_with_data(var, place_dcids)
-            if places_with_data:
-                existing_variables.append({"dcid": var, "places_with_data": places_with_data})
-
-        return existing_variables
-
-    def _filter_topics_by_existence(
-        self, topic_dcids: list[str], place_dcids: list[str]
-    ) -> list[dict]:
-        """Filter topics by existence using recursive checks."""
-        if not topic_dcids:
-            return []
-
-        existing_topics = []
-        for topic_dcid in topic_dcids:
-            places_with_data = self._get_topic_places_with_data(topic_dcid, place_dcids)
-            if places_with_data:
-                existing_topics.append({"dcid": topic_dcid, "places_with_data": places_with_data})
-
-        return existing_topics
-
-    def _get_topics_members_with_existence(
-        self,
-        topic_dcids: list[dict],
-        *,
-        include_topics: bool,
-        place_dcids: list[str] = None,
-    ) -> dict:
-        """Get member topics and variables for topics, filtered by existence if places specified
-
-        If include_topics is false, we return all descendant variables.
-        If include_topics is true, we return member topics and member variables.
-        """
-        if not topic_dcids or not self.topic_store:
-            return {}
-
-        result = {}
-
-        for topic_info in topic_dcids:
-            topic_dcid = topic_info["dcid"]
-            topic_data = self.topic_store.topics_by_dcid.get(topic_dcid)
-            if not topic_data:
-                continue
-
-            member_topics: list[str] = []
-            member_variables: list[str] = []
-
-            if include_topics:
-                member_topics = topic_data.member_topics
-                member_variables = topic_data.member_variables
-            else:
-                member_topics = []
-                member_variables = topic_data.descendant_variables
-
-            # Filter by existence if places are specified
-            if place_dcids:
-                # Filter member variables by existence
-                filtered_variables = self._filter_variables_by_existence(
-                    member_variables, place_dcids
-                )
-                # Extract just the dcids from the filtered results
-                member_variables = [var["dcid"] for var in filtered_variables]
-
-                # Filter member topics by existence
-                filtered_topics = self._filter_topics_by_existence(member_topics, place_dcids)
-                # Extract just the dcids from the filtered results
-                member_topics = [topic["dcid"] for topic in filtered_topics]
-
-            result[topic_dcid] = {
-                "member_topics": member_topics,
-                "member_variables": member_variables,
-            }
-
-        return result
-
-    def _build_lookups(self, entities: list[str]) -> dict:
-        """Build DCID-to-name mappings using TopicStore."""
-        if not self.topic_store:
-            return {}
-
-        lookups = {}
-        for entity in entities:
-            name = self.topic_store.get_name(entity)
-            if name:
-                lookups[entity] = name
-
-        return lookups
 
 
 #
@@ -1182,7 +795,6 @@ def _create_base_dc_client(settings: BaseDCSettings) -> DCClient:
         base_index=settings.base_index,
         custom_index=None,
         sv_search_base_url=settings.search_root,
-        use_search_indicators_endpoint=settings.use_search_indicators_endpoint,
         topic_store=topic_store,
     )
 
@@ -1217,7 +829,6 @@ def _create_custom_dc_client(settings: CustomDCSettings) -> DCClient:
         base_index=settings.base_index,
         custom_index=settings.custom_index,
         sv_search_base_url=settings.custom_dc_url,  # Use custom_dc_url as sv_search_base_url
-        use_search_indicators_endpoint=settings.use_search_indicators_endpoint,
         topic_store=topic_store,
         # TODO (@jm-rivera): Remove place-like parameter new search endpoint is live.
         _place_like_constraints=settings.place_like_constraints,
