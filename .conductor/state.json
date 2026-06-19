@@ -1,14 +1,14 @@
 {
   "version": 1,
-  "active": "complete-search-migration",
+  "active": "split-clients-module",
   "epics": [
     {
-      "id": "complete-search-migration",
-      "title": "complete-search-migration",
-      "priority": "P0",
+      "id": "split-clients-module",
+      "title": "Split the clients.py god module into a clients/ package",
+      "priority": "P1",
       "status": "active",
       "role": "epic",
-      "lane": "openspec",
+      "lane": "superpowers",
       "links": [],
       "reconcileNeeded": false
     }

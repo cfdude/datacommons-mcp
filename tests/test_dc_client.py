@@ -66,7 +66,7 @@ def mocked_datacommons_client():
     in a test using this fixture will have its `self.dc` attribute set to
     this mock instance.
     """
-    with patch("datacommons_mcp.clients.DataCommonsClient") as mock_constructor:
+    with patch("datacommons_mcp.clients.factory.DataCommonsClient") as mock_constructor:
         mock_instance = Mock(spec=DataCommonsClient)
         # Manually add the client endpoints which aren't picked up by spec
         mock_instance.observation = Mock()
@@ -235,7 +235,7 @@ class TestDCClientFetchIndicatorsNew:
         return client
 
     @pytest.mark.asyncio
-    @patch("datacommons_mcp.clients.asyncio.to_thread")
+    @patch("datacommons_mcp.clients.search.asyncio.to_thread")
     async def test_api_call_construction(self, mock_to_thread, client: DCClient):
         """
         Tests that _fetch_indicators_new constructs the API call correctly.
@@ -271,7 +271,7 @@ class TestDCClientFetchIndicatorsNew:
         assert params["index"] == ["base_uae_mem"]
 
     @pytest.mark.asyncio
-    @patch("datacommons_mcp.clients.asyncio.to_thread")
+    @patch("datacommons_mcp.clients.search.asyncio.to_thread")
     async def test_api_error_handling(self, mock_to_thread, client: DCClient):
         """
         Tests that an API error is caught and returns empty results.
@@ -290,7 +290,7 @@ class TestDCClientFetchIndicatorsNew:
         assert dcid_name_mappings == {}
 
     @pytest.mark.asyncio
-    @patch("datacommons_mcp.clients.asyncio.to_thread")
+    @patch("datacommons_mcp.clients.search.asyncio.to_thread")
     async def test_processing_flow(self, mock_to_thread, client: DCClient):
         """
         Tests that the correct internal helpers are called during processing.
@@ -344,7 +344,7 @@ class TestDCClientFetchIndicatorsNew:
         client._expand_topics_to_variables.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch("datacommons_mcp.clients.asyncio.to_thread")
+    @patch("datacommons_mcp.clients.search.asyncio.to_thread")
     async def test_final_name_lookup(self, mock_to_thread, client: DCClient):
         """
         Tests that missing names for topic members are fetched at the end.
@@ -857,7 +857,7 @@ class TestDCClientFetchIndicatorsNew:
         assert result[1].dcid == "var2"
 
     @pytest.mark.asyncio
-    @patch("datacommons_mcp.clients.asyncio.to_thread")
+    @patch("datacommons_mcp.clients.search.asyncio.to_thread")
     async def test_fetch_indicators_new_end_to_end(self, mock_to_thread, client: DCClient):
         """
         Tests the full end-to-end logic of _fetch_indicators_new, including
@@ -966,7 +966,7 @@ class TestDCClientFetchIndicatorsNew:
         }
 
     @pytest.mark.asyncio
-    @patch("datacommons_mcp.clients.asyncio.to_thread")
+    @patch("datacommons_mcp.clients.search.asyncio.to_thread")
     async def test_fetch_indicators_new_cross_task_merge_order(
         self, mock_to_thread, client: DCClient
     ):
@@ -1010,7 +1010,7 @@ class TestDCClientFetchIndicatorsNew:
         assert list(search_result.variables.keys()) == ["Var_B", "Var_A"]
 
     @pytest.mark.asyncio
-    @patch("datacommons_mcp.clients.asyncio.to_thread")
+    @patch("datacommons_mcp.clients.search.asyncio.to_thread")
     async def test_fetch_indicators_new_end_to_end_with_topics(
         self, mock_to_thread, client: DCClient
     ):
@@ -1110,8 +1110,8 @@ class TestDCClientFetchIndicatorsNew:
 class TestCreateDCClient:
     """Tests for the create_dc_client factory function."""
 
-    @patch("datacommons_mcp.clients.DataCommonsClient")
-    @patch("datacommons_mcp.clients.read_topic_caches")
+    @patch("datacommons_mcp.clients.factory.DataCommonsClient")
+    @patch("datacommons_mcp.clients.factory.read_topic_caches")
     def test_create_dc_client_base_dc(
         self, mock_read_caches: Mock, mock_dc_client: Mock, isolated_env
     ):
@@ -1137,8 +1137,8 @@ class TestCreateDCClient:
                 surface_header_value=SURFACE_HEADER_VALUE,
             )
 
-    @patch("datacommons_mcp.clients.DataCommonsClient")
-    @patch("datacommons_mcp.clients.create_topic_store")
+    @patch("datacommons_mcp.clients.factory.DataCommonsClient")
+    @patch("datacommons_mcp.clients.factory.create_topic_store")
     def test_create_dc_client_custom_dc(
         self, mock_create_store: Mock, mock_dc_client: Mock, isolated_env
     ):
@@ -1176,7 +1176,7 @@ class TestCreateDCClient:
                 surface_header_value=SURFACE_HEADER_VALUE,
             )
 
-    @patch("datacommons_mcp.clients.DataCommonsClient")
+    @patch("datacommons_mcp.clients.factory.DataCommonsClient")
     def test_create_dc_client_url_computation(self, mock_dc_client):
         """Test URL computation for custom DC."""
         # Arrange
@@ -1203,9 +1203,9 @@ class TestCreateDCClient:
                 surface_header_value=SURFACE_HEADER_VALUE,
             )
 
-    @patch("datacommons_mcp.clients.DataCommonsClient")
-    @patch("datacommons_mcp.clients._create_base_topic_store")
-    @patch("datacommons_mcp.clients.create_topic_store")
+    @patch("datacommons_mcp.clients.factory.DataCommonsClient")
+    @patch("datacommons_mcp.clients.factory._create_base_topic_store")
+    @patch("datacommons_mcp.clients.factory.create_topic_store")
     @pytest.mark.parametrize(
         "test_case",
         [
