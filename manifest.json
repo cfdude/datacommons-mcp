@@ -2,7 +2,7 @@
   "manifest_version": "0.2",
   "name": "datacommons-mcp",
   "display_name": "Data Commons MCP",
-  "version": "1.2.2",
+  "version": "1.3.1",
   "description": "Access the Data Commons Knowledge Graph with automatic large dataset handling, CSV export, and data lineage tracking.",
   "author": {
     "name": "DataCommons",

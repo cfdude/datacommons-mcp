@@ -69,8 +69,10 @@ jobs:
   build_and_publish:
     # Publish only when the version was bumped AND lint+tests pass
     needs: [check_version, ci_gate]
-    # This is the key: the job only runs if a version bump was detected
-    if: needs.check_version.outputs.bump == 'true'
+    # Run only on a version bump AND only in the upstream repo. This fork
+    # (a redesigned downstream) must NEVER publish to the upstream PyPI name —
+    # the version.py bump drives the extension version, not a PyPI release here.
+    if: needs.check_version.outputs.bump == 'true' && github.repository == 'datacommonsorg/agent-toolkit'
     runs-on: ubuntu-latest
     permissions:
       contents: write # Permission to create and push a Git tag
