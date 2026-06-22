@@ -31,10 +31,15 @@ rsync -a --exclude='__pycache__/' --exclude='*.pyc' --exclude='*.pyo' \
 cp run_server.sh run_server.cmd build/
 
 # Copy the dependency spec uv needs to resolve/build at runtime.
-# pyproject.toml + uv.lock pin the exact dependency versions (reproducible);
-# README.md and LICENSE are referenced by pyproject.toml and required to
-# build the local package.
-cp pyproject.toml uv.lock README.md LICENSE build/
+# uv.lock pins the exact dependency versions (reproducible); README.md and
+# LICENSE are referenced by pyproject.toml and required to build the package.
+cp uv.lock README.md LICENSE build/
+
+# The bundle is FLATTENED (datacommons_mcp/ sits at the bundle root, NOT under
+# src/), so the bundled pyproject must discover the package at "." instead of
+# "src". Without this, uv's editable build on first launch fails to find the
+# package (setuptools ModuleNotFoundError resolving the dynamic version attr).
+sed 's#^where = \["src"\]#where = ["."]#' pyproject.toml > build/pyproject.toml
 
 # Copy manifest to build directory
 cp manifest.json build/
