@@ -25,7 +25,7 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/datacommonsorg/agent-toolkit"
+Homepage = "https://github.com/cfdude/datacommons-mcp"
 
 [project.optional-dependencies]
 dev = [

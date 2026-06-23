@@ -1,24 +1,14 @@
 {
   "version": 1,
-  "active": "testing-and-ci-hardening",
+  "active": "docs-rewrite-claude-audience",
   "epics": [
     {
-      "id": "src-layout-and-rename",
-      "title": "Adopt src/ layout and rename servers/ to tools/",
-      "priority": "P2",
-      "status": "active",
-      "role": "epic",
-      "lane": "superpowers",
-      "links": [],
-      "reconcileNeeded": false
-    },
-    {
-      "id": "testing-and-ci-hardening",
-      "title": "testing-and-ci-hardening",
+      "id": "docs-rewrite-claude-audience",
+      "title": "Rewrite docs for Claude Desktop/Code + ChatGPT audience; fix fork identity",
       "priority": "P1",
       "status": "active",
       "role": "epic",
-      "lane": "openspec",
+      "lane": "superpowers",
       "links": [],
       "reconcileNeeded": false
     }
