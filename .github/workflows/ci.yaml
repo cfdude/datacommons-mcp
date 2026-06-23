@@ -15,23 +15,14 @@ jobs:
   ci-checks:
     runs-on: ubuntu-latest
 
-    # Run tests on python 3.11 and 3.12
+    # Run lint, type-check, and tests on every supported Python version.
     strategy:
       matrix:
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.11", "3.12", "3.13"]
 
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-
-      - name: Check for changed test paths
-        id: filter
-        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v3
-        with:
-          filters: |
-            run_tests:
-              - 'datacommons_mcp/**'
-              - 'tests/**'
 
       - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
@@ -42,17 +33,42 @@ jobs:
         run: pip install uv
 
       - name: Install dependencies
-        # Install all dependencies including dev extras (ruff, pytest)
+        # Install all dependencies including dev extras (ruff, pytest, mypy)
         run: uv sync --extra dev
 
       - name: Check formatting with Ruff
-        # The --check flag will fail if the code is not formatted correctly
         run: uv run ruff format --check
 
       - name: Lint with Ruff
         run: uv run ruff check
 
-      - name: Run tests with pytest. Skip eval tests.
-        # Run unit tests if code in the datacommons-mcp package or tests directory changed
-        if: steps.filter.outputs.run_tests == 'true'
-        run: uv run pytest -k "not eval"
+      - name: Type-check with mypy
+        run: uv run mypy src/datacommons_mcp
+
+      - name: Run tests with coverage (excluding e2e)
+        # Always run — no conditional skip — with the coverage floor.
+        run: uv run pytest -m "not e2e" --cov=datacommons_mcp --cov-fail-under=80
+
+  # Smoke-test the Claude Desktop extension's FIRST-LAUNCH editable build
+  # (the step that broke macOS+Windows after the src/ migration). Packaging alone
+  # never exercised it; this assembles the flattened bundle and runs the actual
+  # `uv run --frozen` editable build + import.
+  extension-build-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Assemble the extension bundle (no mcpb pack needed)
+        run: bash build-extension.sh --no-pack
+
+      - name: Verify the bundle's first-launch editable build
+        run: uv run --frozen --project build python -c "import datacommons_mcp; print(datacommons_mcp.__version__)"
