@@ -6,11 +6,11 @@
   "description": "Access the Data Commons Knowledge Graph with automatic large dataset handling, CSV export, and data lineage tracking.",
   "author": {
     "name": "DataCommons",
-    "url": "https://github.com/datacommonsorg/agent-toolkit"
+    "url": "https://github.com/cfdude/datacommons-mcp"
   },
-  "homepage": "https://github.com/datacommonsorg/agent-toolkit",
-  "documentation": "https://github.com/datacommonsorg/agent-toolkit/blob/main/packages/datacommons-mcp/README.md",
-  "support": "https://github.com/datacommonsorg/agent-toolkit/issues",
+  "homepage": "https://github.com/cfdude/datacommons-mcp",
+  "documentation": "https://github.com/cfdude/datacommons-mcp/blob/main/README.md",
+  "support": "https://github.com/cfdude/datacommons-mcp/issues",
   "server": {
     "type": "python",
     "entry_point": "datacommons_mcp/run_server.py",
@@ -82,7 +82,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/datacommonsorg/agent-toolkit"
+    "url": "https://github.com/cfdude/datacommons-mcp"
   },
   "keywords": [
     "data-commons",

@@ -1,199 +1,102 @@
 # Data Commons MCP Server
 
-This is a Model Context Protocol (MCP) server for fetching public statistical data from [Data Commons](https://datacommons.org) instances.
+A [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server that exposes the
+[Data Commons](https://datacommons.org) public statistical knowledge graph to AI clients such
+as Claude Desktop, Claude Code, and ChatGPT.
 
-Data Commons is an open knowledge repository that provides a unified view across multiple public data sets and statistics.  This server allows any MCP-enabled agent or client to query the Data Commons knowledge graph.
+Data Commons is an open knowledge repository that unifies thousands of public datasets
+(census, health, economics, climate, and more) behind a single graph. This server lets an
+MCP-enabled client discover the right statistical variables and places, then fetch the actual
+observations — automatically streaming large results to CSV so they stay usable in other tools.
 
-## Features
-* **MCP-Compliant:** Implements the Model Context Protocol for seamless agent integration.
-* **Data Commons Access:** Fetches public statistics and data from the base datacommons.org knowledge graph.
-* **Custom Instance Support:** Can be configured to work with Custom Data Commons instances.
-* **Flexible Serving:** Runs over both streamable HTTP and stdio.
-* **Large Dataset Handling:** Automatic pagination and streaming for large observation queries.
-* **Multiple Output Modes:** Choose between screen display, automatic CSV export, or forced file output.
-* **Multi-File Export:** Split large exports by place, place type, date, or chunk size.
-* **Data Lineage:** CSV exports include comprehensive lineage headers for data provenance.
-* **Progress Streaming:** Real-time progress updates via STDIO or SSE transport.
+> This is [`cfdude/datacommons-mcp`](https://github.com/cfdude/datacommons-mcp), a
+> heavily-redesigned downstream fork. It builds on Google's Data Commons and originated from the
+> [Data Commons agent-toolkit](https://github.com/datacommonsorg/agent-toolkit), but this fork is
+> **not** published to PyPI and is documented independently here. Server version **1.3.1**.
 
-## Quickstart
+## The two tools
 
-### Prerequisites
+This server exposes exactly two tools:
 
-1.  You must have a Data Commons API key; create one at [apikeys.datacommons.org](https://apikeys.datacommons.org/).
-2.  Install `uv` by following the [official installation instructions](https://docs.astral.sh/uv/getting-started/installation).
+| Tool | What it does |
+| --- | --- |
+| **`search_indicators`** | Finds statistical variables and topics (and which places actually have data for them). **Call this first** to discover valid variable + place DCIDs. |
+| **`get_observations`** | Fetches the actual statistical data for a variable + place(s). Small results come back inline; large results stream to a CSV/JSON file. |
 
-### Configuration
+The typical flow: `search_indicators` to find DCIDs → `get_observations` to pull the numbers.
+See the [reference](docs/reference.md) for the structured shapes each tool returns and example prompts.
 
-Set the following required environment variable in your shell:
+## Choose your client
 
-```
-export DC_API_KEY=<your API key>
-```
+Pick the guide that matches how you'll run the server:
 
-### Start the server 
+| Client | What it is | Install model | Guide |
+| --- | --- | --- | --- |
+| **Claude Desktop** | The desktop app (macOS + Windows) | A one-click `.mcpb` extension; configure the API key in the UI | [docs/claude-desktop.md](docs/claude-desktop.md) |
+| **Claude Code** | The CLI / coding agent | Register the MCP server yourself from git or a local clone; configure via env vars | [docs/claude-code.md](docs/claude-code.md) |
+| **ChatGPT** | OpenAI's app (beta, plan-gated) | A remote HTTPS MCP endpoint via Developer mode | [docs/chatgpt.md](docs/chatgpt.md) |
 
-Run the server from your command line in one of two modes:
+Reference material that applies to every client lives in [docs/reference.md](docs/reference.md).
+Maintainers building the extension itself want [docs/building-the-extension.md](docs/building-the-extension.md).
 
-**Streamable HTTP**
+## Get an API key
 
-This runs the server with Streamable HTTP.
+Every client needs a Data Commons API key.
 
-```bash
-# Runs on default port 8080
-uvx datacommons-mcp serve http [--port <PORT>]
-```
+1. Create one at [apikeys.datacommons.org](https://apikeys.datacommons.org/) (the key authorizes
+   requests to `api.datacommons.org`).
+2. Provide it to the server as `DC_API_KEY` — either in the Claude Desktop extension UI, or as an
+   environment variable for Claude Code / HTTP serving.
 
-The server will be available at `http://localhost:<port>/mcp`.
+## How output works
 
-**stdio**
+`get_observations` decides between two output modes based on result size:
 
-This transport mode is intended for local integrations and is programmatically configured within a client (like Gemini CLI settings) to communicate over `stdio`.
+- **Screen (inline).** Small results are returned directly in the response (`output_mode: "screen"`).
+- **File (export).** Large or paginated results stream to a file on disk
+  (`output_mode: "file"`), and the response carries `file_path`, `rows_written`, `pages_fetched`,
+  `file_size_bytes`, `unique_places_count`, and `format` instead of the raw rows.
 
-```bash
-uvx datacommons-mcp serve stdio
-```
+The cutover is controlled by `DC_SCREEN_ROW_THRESHOLD` (default **500** rows). Exports default to
+**CSV** (`DC_OUTPUT_FORMAT`), so results drop straight into spreadsheets and data tools.
 
-## Clients
+### Data lineage
 
-You can use any MCP-enabled agent or client to connect to your running server. For example, see the [Data Commons MCP documentation](https://github.com/datacommonsorg/agent-toolkit/blob/main/docs/user_guide.md) for guides on connecting:
-* [Google Gemini CLI](https://github.com/datacommonsorg/agent-toolkit/blob/main/docs/quickstart.md)
+CSV exports include data-lineage header rows describing the source and provenance of each series.
+Toggle with `DC_INCLUDE_LINEAGE` (default **true**).
 
-Or see your preferred client's documentation for how to configure it, using the commands listed above.
+### Multi-file export
 
-## Advanced Configuration
+Setting `DC_MULTI_FILE_EXPORT=true` (or passing `multi_file: true` to a single call) writes
+companion metadata files alongside the main export. Off by default.
 
-### Server Options
+## Configuration (environment variables)
 
-**HTTP Mode Options**
+| Variable | Default | Description |
+| --- | --- | --- |
+| `DC_API_KEY` | *(required)* | Data Commons API key from [apikeys.datacommons.org](https://apikeys.datacommons.org/). |
+| `DC_STORAGE_DIR` | `~/Documents/datacommons-data` | Directory where exported files are written. |
+| `DC_OUTPUT_FORMAT` | `csv` | Export format: `csv` or `json`. |
+| `DC_SCREEN_ROW_THRESHOLD` | `500` | Max rows returned inline; larger responses export to a file. |
+| `DC_MAX_PAGES` | `100` | Max API pages fetched per paginated request. |
+| `DC_INCLUDE_LINEAGE` | `true` | Include data-lineage headers in CSV exports. |
+| `DC_MULTI_FILE_EXPORT` | `false` | Write companion metadata files alongside exports. |
+| `DC_TYPE` | `base` | `base` (datacommons.org) or `custom` (a Custom Data Commons instance). |
 
-```bash
-uvx datacommons-mcp serve http [OPTIONS]
-```
+Custom Data Commons instances add `CUSTOM_DC_URL`, `DC_SEARCH_SCOPE`, `DC_BASE_INDEX`, and
+`DC_CUSTOM_INDEX` — see [Custom Data Commons](docs/reference.md#custom-data-commons) in the reference.
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--port` | 8080 | Port to run the HTTP server on |
-| `--progress-transport` | stdio | Transport for progress updates (`stdio` or `sse`) |
-| `--verbose` | false | Enable verbose progress logging |
-| `--sse-port` | 8081 | Port for SSE progress server (when using SSE transport) |
-| `--storage-dir` | `./datacommons-data` | Directory for exported data files |
+## Documentation map
 
-**stdio Mode Options**
+- [Claude Desktop guide](docs/claude-desktop.md) — install the `.mcpb` extension
+- [Claude Code guide](docs/claude-code.md) — register the server from git/local
+- [ChatGPT guide](docs/chatgpt.md) — remote HTTPS endpoint (beta)
+- [Reference](docs/reference.md) — concepts, tool shapes, env vars, custom DC, MCP Inspector
+- [Building the extension](docs/building-the-extension.md) — maintainer doc
 
-```bash
-uvx datacommons-mcp serve stdio [OPTIONS]
-```
+## License & credit
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--verbose` | false | Enable verbose progress logging |
-| `--storage-dir` | `./datacommons-data` | Directory for exported data files |
-
-### Large Dataset Handling
-
-The server automatically handles large datasets through pagination-based streaming and row count thresholds:
-
-1. **Auto Mode (default):** Automatically detects large datasets and streams them to CSV files. File mode is triggered when:
-   - The API returns multiple pages (pagination detected), OR
-   - The response exceeds the row threshold (default: 500 rows)
-2. **Screen Mode:** Forces all results to screen (use with caution for large datasets).
-3. **File Mode:** Forces all results to CSV file, even for small datasets.
-
-The row threshold prevents large single-page responses from flooding the context window. Configure it via `DC_SCREEN_ROW_THRESHOLD` environment variable.
-
-Output files are saved to a configurable storage directory (default: `./datacommons-data`) with timestamped filenames. Configure the storage directory via the `--storage-dir` CLI option or `DC_STORAGE_DIR` environment variable.
-
-### Multi-File Export
-
-For very large datasets, you can split exports into multiple files using different strategies:
-
-| Strategy | Description |
-|----------|-------------|
-| `by_place` | One file per unique place DCID |
-| `by_place_type` | One file per place type (State, County, etc.) |
-| `by_date` | One file per year |
-| `by_chunk` | Fixed number of rows per file |
-
-Each multi-file export includes a manifest JSON file describing all exported files.
-
-### Data Lineage Headers
-
-CSV exports include comprehensive lineage headers as comments at the top of each file:
-
-```csv
-# ============================================================
-# Data Commons MCP Server Export
-# ============================================================
-# Query:
-#   variable_dcid: Count_Person
-#   variable_name: Total Population
-#   place_dcid: country/USA
-#   child_place_type: State
-# Date Filter:
-#   date_filter: range
-#   date_range_start: 2019-01-01
-#   date_range_end: 2021-12-31
-# Source:
-#   source_id: CensusACS5YearSurvey
-#   source_url: https://data.census.gov
-# Export:
-#   server_version: 1.2.0
-#   timestamp: 2024-01-15T10:30:00Z
-#   total_pages: 5
-# ============================================================
-#
-place_dcid,place_name,place_type,variable_dcid,variable_name,date,value,source_id
-...
-```
-
-To disable lineage headers, set `include_lineage=False` in the configuration.
-
-### Progress Streaming
-
-The server supports real-time progress updates during large data fetches:
-
-**STDIO Transport (default)**
-Progress messages are written to stderr in JSON format, suitable for programmatic parsing.
-
-**SSE Transport**
-For web-based clients, progress can be streamed via Server-Sent Events:
-
-```bash
-uvx datacommons-mcp serve http --progress-transport sse --sse-port 8081
-```
-
-Connect to `http://localhost:8081/events` to receive real-time progress updates.
-
-### Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DC_API_KEY` | Yes | Your Data Commons API key |
-| `DC_API_ROOT` | No | Custom API root URL |
-| `DC_WEBSITE_ROOT` | No | Custom website root URL |
-| `DC_STORAGE_DIR` | No | Directory for storing exported data files (default: `./datacommons-data`) |
-| `DC_OUTPUT_FORMAT` | No | Default format for file exports: `csv` or `json` (default: `csv`) |
-| `DC_MAX_PAGES` | No | Maximum pages to fetch in paginated requests (default: `100`) |
-| `DC_INCLUDE_LINEAGE` | No | Include data lineage headers in CSV exports (default: `true`) |
-| `DC_MULTI_FILE_EXPORT` | No | Enable multi-file export with companion CSVs (default: `false`) |
-| `DC_SCREEN_ROW_THRESHOLD` | No | Max rows to return to screen in auto mode; larger responses go to file (default: `500`) |
-
-### Using MCP Tools with a Custom Data Commons
-
-Follow the [Guide for using MCP Tools with Custom Data Commons](https://github.com/datacommonsorg/agent-toolkit/blob/main/docs/user_guide.md#custom-data-commons) to set additional environment variables required for custom configuration.
-
-## Version History
-
-### v1.2.0
-- Added pagination-based streaming for large datasets
-- Added automatic CSV export for multi-page responses
-- Added output mode selection (auto, screen, file)
-- Added transport abstraction layer (STDIO, SSE)
-- Added SSE server for real-time progress streaming
-- Added multi-file export with split strategies
-- Added comprehensive data lineage headers to CSV exports
-
-### v1.1.x
-- Initial release with core MCP functionality
-- Search indicators and get observations tools
-- Custom Data Commons support
+Apache-2.0. Builds on Google's [Data Commons](https://datacommons.org) and originated from the
+[agent-toolkit](https://github.com/datacommonsorg/agent-toolkit). Data is provided by Data Commons
+and its underlying sources; this server does not modify or vouch for the underlying data. Issues
+and support: [github.com/cfdude/datacommons-mcp](https://github.com/cfdude/datacommons-mcp).
