@@ -43,7 +43,7 @@ def _extract_place_like(
         node_dcids=nodes, properties=[constraint]
     ).get_properties()
 
-    result = {}
+    result: dict[str, list[str]] = {}
 
     for dcid, node in node_props.items():
         entity = node[constraint]

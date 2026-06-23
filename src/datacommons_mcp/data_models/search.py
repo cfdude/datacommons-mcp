@@ -62,7 +62,7 @@ class SearchIndicator(BaseModel):
     dcid: str
     description: str | None = None
     alternate_descriptions: list[str] | None = Field(
-        None, description="Alternate descriptions or matched sentences."
+        default=None, description="Alternate descriptions or matched sentences."
     )
 
 
@@ -82,7 +82,7 @@ class SearchTopic(SearchIndicator):
         default_factory=list, description="Direct member variable DCIDs"
     )
     places_with_data: list[str] | None = Field(
-        None,
+        default=None,
         description="Place DCIDs where data exists (if place filtering was performed)",
     )
 
@@ -102,7 +102,7 @@ class SearchResponse(BaseModel):
     """Unified response model for search operations."""
 
     topics: list[SearchTopic] | None = Field(
-        None, description="List of topic objects (browse mode only)"
+        default=None, description="List of topic objects (browse mode only)"
     )
     variables: list[SearchVariable] = Field(
         description="List of variable objects with dcid and places_with_data"
@@ -114,7 +114,7 @@ class SearchResponse(BaseModel):
         default_factory=dict, description="Place DCID to type mappings"
     )
     resolved_parent_place: ResolvedPlace | None = Field(
-        None,
+        default=None,
         description="The resolved node information for the parent place, if one was provided.",
     )
 

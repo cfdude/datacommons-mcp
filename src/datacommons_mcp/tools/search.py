@@ -15,7 +15,7 @@
 
 import json
 import logging
-from typing import Union
+from typing import Union, cast
 
 from fastmcp.server.context import Context
 from fastmcp.server.dependencies import CurrentContext
@@ -315,7 +315,9 @@ async def search_indicators(
         response: SearchResponse = await search_indicators_service(
             client=client,
             query=query,
-            places=places,
+            # The JSON-string workaround above converts the str case to a list,
+            # so by this point places is effectively list[str] | None.
+            places=cast("list[str] | None", places),
             parent_place=parent_place,
             per_search_limit=per_search_limit,
             include_topics=include_topics,

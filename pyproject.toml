@@ -33,6 +33,7 @@ dev = [
     "pytest>=9.0.3,<10.0.0",
     "pytest-asyncio>=0.21.0,<2.0.0",
     "pytest-cov>=4.0.0,<8.0.0",
+    "mypy>=1.8.0,<2.0.0",
 ]
 
 [project.scripts]
@@ -123,7 +124,7 @@ line-ending = "auto"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-python_files = ["test_*.py", "*_test.py"]
+python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = [
@@ -138,3 +139,31 @@ markers = [
     "integration: marks tests as integration tests",
     "unit: marks tests as unit tests",
 ]
+
+[tool.coverage.run]
+source = ["datacommons_mcp"]
+omit = ["*/tests/*"]
+
+[tool.coverage.report]
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.mypy]
+# Pragmatic, non-strict: a forward gate, not a strict-typing rewrite.
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+[[tool.mypy.overrides]]
+# DCClient is composed from mixins (_SearchMixin/_EntitiesMixin/_ObservationsMixin)
+# that reference attributes set in DCClient.__init__ (self.dc, self.variable_cache,
+# self.topic_store, ...). mypy can't see across the mixin boundary. Suppressing
+# attr-defined here avoids hand-declaring ~29 attrs / a Protocol; trade-off: it also
+# masks typo'd attribute access within clients/* (covered by the test suite instead).
+module = "datacommons_mcp.clients.*"
+disable_error_code = ["attr-defined"]

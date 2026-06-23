@@ -127,7 +127,7 @@ async def search_indicators(
             resolved_parent_place = ResolvedPlace(
                 dcid=place_context.parent_place_dcid,
                 name=parent_info.name,
-                type_of=parent_info.type_of,
+                typeOf=parent_info.type_of,
             )
 
     # Create unified response (topics/variables come from the native flow)
@@ -160,8 +160,8 @@ def _create_search_tasks(
         List of SearchTask objects
     """
     search_tasks = []
-    place_dcids = (
-        [place_dcids_map.get(name) for name in places if place_dcids_map.get(name)]
+    place_dcids: list[str] = (
+        [dcid for name in places if (dcid := place_dcids_map.get(name))]
         if places and place_dcids_map
         else []
     )

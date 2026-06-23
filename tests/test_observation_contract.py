@@ -19,6 +19,10 @@ import pytest
 
 from datacommons_mcp.data_models.observations import FacetMetadata
 
+# Integration tier: exercises the real alias mapping against a captured live-API
+# payload (no mocks) — not a fast isolated unit test.
+pytestmark = pytest.mark.integration
+
 _SAMPLE = (
     Path(__file__).resolve().parent.parent
     / "docs"

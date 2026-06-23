@@ -62,10 +62,9 @@ class DCClient(_ObservationsMixin, _EntitiesMixin, _SearchMixin):
             topic_store = TopicStore(topics_by_dcid={}, all_variables=set())
         self.topic_store = topic_store
 
+        self._place_like_statvar_store: dict[str, set[str]] = {}
         if _place_like_constraints:
             self._compute_place_like_statvar_store(constraints=_place_like_constraints)
-        else:
-            self._place_like_statvar_store = {}
 
     #
     # Initialization & Configuration

@@ -23,11 +23,11 @@ class LruCache:
     """
 
     def __init__(self, capacity: int) -> None:
-        self.cache = collections.OrderedDict()
+        self.cache: collections.OrderedDict[str, set[str]] = collections.OrderedDict()
         self.capacity = capacity
         self._lock = threading.RLock()
 
-    def get(self, key: str) -> set[str]:
+    def get(self, key: str) -> set[str] | None:
         """
         Retrieves an item from the cache and marks it as recently used.
         Returns None if the key is not found.

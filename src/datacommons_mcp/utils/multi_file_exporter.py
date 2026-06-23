@@ -352,13 +352,13 @@ class MultiFileExporter:
 
         with open(file_path, "w", newline="", encoding="utf-8") as f:
             if headers:
-                writer = csv.DictWriter(f, fieldnames=headers)
-                writer.writeheader()
-                writer.writerows(rows)
+                dict_writer = csv.DictWriter(f, fieldnames=headers)
+                dict_writer.writeheader()
+                dict_writer.writerows(rows)
             else:
                 writer = csv.writer(f)
                 for row in rows:
-                    writer.writerow(row.values())
+                    writer.writerow(list(row.values()))
 
         return file_path.stat().st_size
 

@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import Field, field_validator, model_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .data_models.enums import SearchScope
 
@@ -139,7 +139,7 @@ def _parse_list_like_parameter(v: Any) -> list[str] | None:
     return [s for s in (part.strip() for part in v.split(",")) if s]
 
 
-_MODEL_CONFIG = {"env_file": ".env", "extra": "ignore"}
+_MODEL_CONFIG = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
 class DCSettingsSelector(BaseSettings):
@@ -163,7 +163,7 @@ class DCSettings(BaseSettings):
 class BaseDCSettings(DCSettings):
     """Settings for base Data Commons instance."""
 
-    def __init__(self, **kwargs: dict[str, Any]) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
 
     dc_type: Literal["base"] = Field(
@@ -209,7 +209,7 @@ class CustomDCSettings(DCSettings):
 
     model_config = _MODEL_CONFIG
 
-    def __init__(self, **kwargs: dict[str, Any]) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
 
     dc_type: Literal["custom"] = Field(
@@ -281,8 +281,11 @@ class CustomDCSettings(DCSettings):
         return self
 
 
-# Union type for both settings
-DCSettings = BaseDCSettings | CustomDCSettings
+# Union type for both settings.
+# DCSettings is intentionally rebound from the base class (defined above) to the
+# public union of its subclasses; mypy can't model a class name reused as a union
+# alias, so the redefinition is suppressed here.
+DCSettings = BaseDCSettings | CustomDCSettings  # type: ignore[misc, assignment]
 
 
 def get_dc_settings() -> DCSettings:

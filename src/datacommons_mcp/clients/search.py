@@ -16,6 +16,7 @@
 import asyncio
 import logging
 import re
+from typing import cast
 
 import requests
 
@@ -216,7 +217,9 @@ class _SearchMixin:
         if not include_topics:
             for search_key, indicators in results_by_search.items():
                 expanded_indicators = self._expand_topics_to_variables(indicators, all_place_dcids)
-                results_by_search[search_key] = expanded_indicators[:per_search_limit]
+                results_by_search[search_key] = cast(
+                    "list[SearchIndicator]", expanded_indicators[:per_search_limit]
+                )
 
         # Merge the remaining indicators into a single SearchResult object (dedup)
         final_search_result = SearchResult()
@@ -226,7 +229,10 @@ class _SearchMixin:
                     if indicator.dcid not in final_search_result.topics:
                         final_search_result.topics[indicator.dcid] = indicator
                 elif indicator.dcid not in final_search_result.variables:
-                    final_search_result.variables[indicator.dcid] = indicator
+                    # A non-topic indicator here is always a SearchVariable at runtime.
+                    final_search_result.variables[indicator.dcid] = cast(
+                        "SearchVariable", indicator
+                    )
 
         # After filtering, create a set of all remaining DCIDs
         final_dcids = set(final_search_result.topics.keys()) | set(
@@ -440,7 +446,7 @@ class _SearchMixin:
         self, indicators: list[SearchIndicator], place_dcids: list[str]
     ) -> list[SearchVariable]:
         """Expands topics in a list of indicators into their member variables."""
-        expanded_variables = {}
+        expanded_variables: dict[str, SearchVariable] = {}
         for indicator in indicators:
             if isinstance(indicator, SearchTopic):
                 for var_dcid in indicator.member_variables:
@@ -461,6 +467,7 @@ class _SearchMixin:
                     )
 
             elif indicator.dcid not in expanded_variables:
-                expanded_variables[indicator.dcid] = indicator
+                # A non-topic indicator here is always a SearchVariable at runtime.
+                expanded_variables[indicator.dcid] = cast("SearchVariable", indicator)
 
         return list(expanded_variables.values())
