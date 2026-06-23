@@ -62,7 +62,7 @@ class PaginationResult:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for tool response."""
-        result = {
+        result: dict[str, Any] = {
             "output_mode": self.output_mode.value,
         }
 

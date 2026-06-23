@@ -16,6 +16,8 @@
 class _ErrorStrMixin:
     """A mixin to provide a descriptive __str__ representation for exceptions."""
 
+    args: tuple[object, ...]
+
     def __str__(self) -> str:
         """Returns a string representation of the exception."""
         message = self.args[0] if self.args else ""

@@ -16,6 +16,7 @@ import asyncio
 import logging
 from collections import defaultdict
 from datetime import datetime
+from typing import cast
 
 from datacommons_client.models.observation import ByVariable
 
@@ -64,7 +65,7 @@ async def _validate_and_build_request(
         date_request_type = ObservationDateType.ALL
     elif parsed_date.date in [member.value for member in ObservationDateType]:
         date_filter = None
-        date_request_type = parsed_date.date
+        date_request_type = cast("ObservationDateType", parsed_date.date)
     else:
         date_filter = DateRange(start_date=parsed_date.date, end_date=parsed_date.date)
         date_request_type = ObservationDateType.ALL
@@ -74,7 +75,9 @@ async def _validate_and_build_request(
 
     resolved_place_dcid = place_dcid
     if not resolved_place_dcid:
-        # Resolve place name to a DCID
+        # Resolve place name to a DCID. Earlier validation guarantees that one of
+        # place_name/place_dcid is set, so place_name is non-None in this branch.
+        assert place_name is not None
         results = await client.search_places([place_name])
         resolved_place_dcid = results.get(place_name)
         if not resolved_place_dcid:
@@ -124,7 +127,7 @@ async def _fetch_all_metadata(
         metadata_map[dcid] = Node(
             dcid=dcid,
             name=names_map.get(dcid),
-            type_of=types_map.get(dcid),
+            typeOf=types_map.get(dcid),
         )
     return metadata_map
 
@@ -160,10 +163,10 @@ def _process_sources_and_filter_observations(
         )
 
     # Iterate all sources to select primary source and build metadata map
-    source_places_found_counts = defaultdict(int)
-    source_date_counts = defaultdict(int)
-    source_latest_dates = defaultdict(lambda: datetime.min)
-    source_indices = defaultdict(list)
+    source_places_found_counts: defaultdict[str, int] = defaultdict(int)
+    source_date_counts: defaultdict[str, int] = defaultdict(int)
+    source_latest_dates: defaultdict[str, datetime] = defaultdict(lambda: datetime.min)
+    source_indices: defaultdict[str, list[int]] = defaultdict(list)
 
     # First pass: gather statistics for all available sources to rank them.
     for place_data in variable_data.byEntity.values():
@@ -264,8 +267,9 @@ async def _build_final_response(
     Builds the final ObservationToolResponse model from API data and metadata.
     """
     variable_data = api_response.byVariable.get(request.variable_dcid, ByVariable({}))
+    source_override: str | None = request.source_ids[0] if request.source_ids else None
     source_result = _process_sources_and_filter_observations(
-        variable_data, request, (request.source_ids or [None])[0]
+        variable_data, request, source_override
     )
 
     primary_source = None
@@ -275,8 +279,11 @@ async def _build_final_response(
             source_id=source_result.primary_source_id, **facet_metadata.to_dict()
         )
 
+    # _fetch_all_metadata always includes the variable_dcid in metadata_map.
+    variable_node = metadata_map.get(request.variable_dcid)
+    assert variable_node is not None
     final_response = ObservationToolResponse(
-        variable=metadata_map.get(request.variable_dcid),
+        variable=variable_node,
         child_place_type=request.child_place_type,
         source_metadata=primary_source if primary_source else FacetMetadata(source_id="unknown"),
     )

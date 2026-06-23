@@ -21,7 +21,10 @@ from typing import Any, Literal
 
 from datacommons_client.endpoints.response import ObservationResponse
 from datacommons_client.models.observation import Observation, OrderedFacet
-from dateutil.parser import parse
+
+# dateutil ships partial stubs that aren't covered by ignore_missing_imports;
+# installing types-python-dateutil isn't worth it for a single import.
+from dateutil.parser import parse  # type: ignore[import-untyped]
 from pydantic import BaseModel, Field, field_validator
 
 from datacommons_mcp.exceptions import (
@@ -214,7 +217,7 @@ class ObservationRequest(BaseModel):
     place_dcid: str
     child_place_type_dcid: str | None = None
     source_ids: list[str] | None = None
-    date_type: ObservationDateType = None
+    date_type: ObservationDateType | None = None
     date_filter: DateRange | None = None
     child_place_type: str | None = None
 
@@ -247,7 +250,7 @@ class SourceProcessingResult(BaseModel):
     @property
     def has_data(self) -> bool:
         """Returns True if any data was processed, False otherwise."""
-        return self.primary_source_id is not None or self.processed_data_by_place
+        return self.primary_source_id is not None or bool(self.processed_data_by_place)
 
 
 TimeSeriesPoint = tuple[str, float]  # [date, value]

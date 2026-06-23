@@ -1,6 +1,15 @@
 #!/bin/bash
 set -e
 
+# Usage: build-extension.sh [--no-pack]
+#   --no-pack  Assemble build/ but skip the `mcpb pack` step (no mcpb CLI needed).
+#              Used by CI to smoke-test the bundle's first-launch editable build
+#              via `uv run --frozen --project build ...`.
+NO_PACK=0
+if [ "${1:-}" = "--no-pack" ]; then
+    NO_PACK=1
+fi
+
 # Build script for the Data Commons MCP Claude Desktop Extension
 # Creates a .mcpb bundle for easy installation.
 #
@@ -43,6 +52,11 @@ sed 's#^where = \["src"\]#where = ["."]#' pyproject.toml > build/pyproject.toml
 
 # Copy manifest to build directory
 cp manifest.json build/
+
+if [ "$NO_PACK" -eq 1 ]; then
+    echo "✓ Bundle assembled in build/ (--no-pack: skipped mcpb pack)"
+    exit 0
+fi
 
 # Pack from the root directory
 mcpb pack build/

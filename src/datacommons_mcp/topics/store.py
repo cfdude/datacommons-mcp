@@ -102,7 +102,7 @@ class TopicStore:
     # Recursively fetch descendant variables using dict to maintain insertion order
     # This is used to populate TopicVariables.descendant_variables
     def _collect_topic_descendant_variables(
-        self, topic_dcid: str, visited: set[str] = None
+        self, topic_dcid: str, visited: set[str] | None = None
     ) -> dict[str, None]:
         if visited is None:
             visited = set()

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "active": "src-layout-and-rename",
+  "active": "testing-and-ci-hardening",
   "epics": [
     {
       "id": "src-layout-and-rename",
@@ -9,6 +9,16 @@
       "status": "active",
       "role": "epic",
       "lane": "superpowers",
+      "links": [],
+      "reconcileNeeded": false
+    },
+    {
+      "id": "testing-and-ci-hardening",
+      "title": "testing-and-ci-hardening",
+      "priority": "P1",
+      "status": "active",
+      "role": "epic",
+      "lane": "openspec",
       "links": [],
       "reconcileNeeded": false
     }
