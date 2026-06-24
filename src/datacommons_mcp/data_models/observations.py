@@ -366,6 +366,19 @@ class ObservationPage(ToolResponseBaseModel):
         return self.next_token is not None
 
 
+class ObservationPreviewRow(ToolResponseBaseModel):
+    """A single flattened observation row (mirrors a CSV row), used for file-result previews."""
+
+    place_dcid: str
+    place_name: str | None = None
+    place_type: str | None = None
+    variable_dcid: str
+    variable_name: str | None = None
+    date: str
+    value: float
+    source_id: str | None = None
+
+
 class ObservationsScreenResult(ToolResponseBaseModel):
     """Inline-data result from get_observations when the response is small enough for screen."""
 
@@ -395,6 +408,22 @@ class ObservationsFileResult(ToolResponseBaseModel):
     )
     multi_file: bool | None = Field(
         default=None, description="Present and True when multi-file export was requested."
+    )
+    variable_name: str | None = Field(
+        default=None, description="Display name of the variable in the export."
+    )
+    columns: list[str] = Field(
+        default_factory=list, description="The CSV column headers for the export."
+    )
+    preview: list[ObservationPreviewRow] = Field(
+        default_factory=list,
+        description="A bounded sample (first rows) of the export so the content is visible "
+        "without opening the file. The full dataset is in the file, not here.",
+    )
+    summary: str = Field(
+        default="",
+        description="Human-readable summary: total rows written, the file path, and that a "
+        "sample is shown.",
     )
 
 

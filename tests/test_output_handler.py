@@ -22,11 +22,14 @@ import pytest
 from datacommons_mcp.data_models.observations import (
     FacetMetadata,
     Node,
+    ObservationPreviewRow,
     ObservationRequest,
     ObservationToolResponse,
     PlaceObservation,
 )
+from datacommons_mcp.utils.csv_streamer import CSVStreamer
 from datacommons_mcp.utils.output_handler import (
+    _PREVIEW_ROWS,
     OutputHandler,
     OutputHandlerConfig,
     OutputHandlerMode,
@@ -270,6 +273,59 @@ class TestOutputHandlerFileMode:
         assert result.rows_written >= 1
         assert result.pages_fetched >= 1
         assert result.file_size_bytes > 0
+
+    @pytest.mark.asyncio
+    async def test_file_mode_includes_preview_and_summary(
+        self, mock_client, temp_storage, sample_request, sample_response
+    ):
+        """File mode returns a bounded, typed preview + summary metadata."""
+        config = OutputHandlerConfig(storage_dir=temp_storage)
+        handler = OutputHandler(mock_client, config)
+
+        result = await handler.handle_observations(
+            request=sample_request,
+            processed_response=sample_response,
+            next_token=None,
+            output_mode=OutputHandlerMode.FILE,
+        )
+
+        # sample_response has 4 rows (< the cap), so the preview is all of them.
+        assert 0 < len(result.preview) <= _PREVIEW_ROWS
+        assert len(result.preview) == result.rows_written
+        assert all(isinstance(r, ObservationPreviewRow) for r in result.preview)
+        assert result.preview[0].variable_name == "Population"
+        assert result.columns == list(CSVStreamer.HEADERS)
+        assert result.variable_name == "Population"
+        # Summary cites the file path + the true total (assert substrings, not wording).
+        assert str(result.file_path) in result.summary
+        assert str(result.rows_written) in result.summary
+
+    @pytest.mark.asyncio
+    async def test_file_mode_preview_is_bounded(self, mock_client, temp_storage, sample_request):
+        """The preview is capped at _PREVIEW_ROWS even for a large dataset."""
+        big_response = ObservationToolResponse(
+            variable=Node(dcid="Count_Person", name="Population"),
+            place_observations=[
+                PlaceObservation(
+                    place=Node(dcid="geoId/06", name="California", type_of=["State"]),
+                    time_series=[(f"20{i:02d}-01-01", float(i)) for i in range(25)],
+                )
+            ],
+            source_metadata=FacetMetadata(source_id="census_pop"),
+        )
+
+        config = OutputHandlerConfig(storage_dir=temp_storage)
+        handler = OutputHandler(mock_client, config)
+
+        result = await handler.handle_observations(
+            request=sample_request,
+            processed_response=big_response,
+            next_token=None,
+            output_mode=OutputHandlerMode.FILE,
+        )
+
+        assert len(result.preview) == _PREVIEW_ROWS  # 10, not 25
+        assert result.rows_written >= len(result.preview)
 
 
 class TestOutputHandlerMultiFile:

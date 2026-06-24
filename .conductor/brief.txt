@@ -1,4 +1,4 @@
-⚠ pm 0.0.0 → 0.3.0 since this repo was set up — run `/pm:upgrade` (CLAUDE.md rules and epic schema may need refreshing).
+⚠ pm 0.3.0 → 0.4.0 since this repo was set up — run `/pm:upgrade` (CLAUDE.md rules and epic schema may need refreshing).
 
 CONDUCTOR STATE — where we are and what's next
 

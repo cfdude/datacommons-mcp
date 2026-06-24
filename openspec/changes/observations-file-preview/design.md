@@ -19,6 +19,7 @@
 - **Preview adds rows to the response** → bounded to N=10 typed rows; trivial vs. the file. The whole point of file-mode (not inlining the dataset) is preserved.
 - **`preview` for a JSON-format file** → `flatten_response_to_rows` is format-independent (it flattens the response, not the file), so the preview is identical regardless of `format`. Fine.
 - **Empty result forced to file** → `preview = []`, `summary` says "0 rows" — handled.
+- **The preview is page-1-only — sound ONLY while streaming is inert.** Today the DC client returns the whole dataset on "page 1" ([[observations-streaming-reality]]), so `processed_response` IS the full dataset and the preview represents it faithfully. If a future real-streaming change (#1) ever makes the multi-page loop actually run, later pages would NOT be in `processed_response`, so the preview source must be revisited then. The `summary` ("first K of `rows_written`") stays arithmetically honest regardless, but #1 must re-examine where the preview rows come from.
 
 ## Migration Plan
 
