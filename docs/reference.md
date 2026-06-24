@@ -68,6 +68,12 @@ Fetches actual observations for a variable + place(s). Returns a discriminated u
 | `file_size_bytes` | Size of the written file. |
 | `unique_places_count` | Distinct places in the export. |
 | `format` | `"csv"` or `"json"`. |
+| `preview` | A bounded sample (first ~10 rows) of the export, so the assistant can see the content without opening the file. |
+| `columns` | The column headers of the export. |
+| `variable_name` | Display name of the variable. |
+| `summary` | One-line summary: total rows written + the file path. |
+
+> The full dataset always goes to the file; `preview` is only a small sample so the model can confirm and reason about the result inline.
 
 **Example prompts that trigger it:**
 
