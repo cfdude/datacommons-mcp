@@ -1,14 +1,14 @@
 {
   "version": 1,
-  "active": "docs-rewrite-claude-audience",
+  "active": "observations-file-preview",
   "epics": [
     {
-      "id": "docs-rewrite-claude-audience",
-      "title": "Rewrite docs for Claude Desktop/Code + ChatGPT audience; fix fork identity",
-      "priority": "P1",
+      "id": "observations-file-preview",
+      "title": "observations-file-preview",
+      "priority": "P2",
       "status": "active",
       "role": "epic",
-      "lane": "superpowers",
+      "lane": "openspec",
       "links": [],
       "reconcileNeeded": false
     }

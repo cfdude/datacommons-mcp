@@ -18,23 +18,29 @@ Provides a high-level interface for handling observation responses with
 automatic mode detection based on pagination.
 """
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from enum import Enum
+from itertools import islice
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from datacommons_mcp.data_models.observations import (
+    ObservationPreviewRow,
     ObservationRequest,
     ObservationsFileResult,
     ObservationsResult,
     ObservationsScreenResult,
     ObservationToolResponse,
 )
+from datacommons_mcp.utils.csv_streamer import CSVStreamer, flatten_response_to_rows
 from datacommons_mcp.utils.pagination_handler import (
     PaginationHandler,
 )
 from datacommons_mcp.utils.path_resolver import PathResolver
 from datacommons_mcp.version import __version__
+
+# Number of rows included as a bounded preview in file-mode results.
+_PREVIEW_ROWS = 10
 
 if TYPE_CHECKING:
     from datacommons_mcp.clients import DCClient
@@ -237,9 +243,25 @@ class OutputHandler:
             if result.companion_files
             else None
         )
+        file_path = str(result.file_path) if result.file_path else None
+
+        # Bounded preview from the already-materialized response so the agent can see
+        # the content without opening the file. This is page-1-only: it is faithful while
+        # the DC client returns the whole dataset at once (see design note); a future
+        # real-streaming change must revisit the preview source.
+        preview = [
+            ObservationPreviewRow(**asdict(row))
+            for row in islice(flatten_response_to_rows(processed_response), _PREVIEW_ROWS)
+        ]
+        summary = (
+            f"{result.rows_written} rows written to {file_path} ({output_format}). "
+            f"Showing the first {len(preview)} of {result.rows_written} row(s); "
+            f"open the file for the full dataset."
+        )
+
         return ObservationsFileResult(
             output_mode="file",
-            file_path=str(result.file_path) if result.file_path else None,
+            file_path=file_path,
             rows_written=result.rows_written,
             pages_fetched=result.pages_fetched,
             file_size_bytes=result.file_size_bytes,
@@ -248,4 +270,8 @@ class OutputHandler:
             companion_files=companion_files,
             # Present (True) only when multi-file export was requested.
             multi_file=True if multi_file else None,
+            variable_name=processed_response.variable.name,
+            columns=list(CSVStreamer.HEADERS),
+            preview=preview,
+            summary=summary,
         )

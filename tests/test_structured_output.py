@@ -12,6 +12,7 @@ from datacommons_mcp.data_models.observations import (
     Node,
     ObservationRequest,
     ObservationToolResponse,
+    PlaceObservation,
 )
 from datacommons_mcp.data_models.search import SearchResponse, SearchVariable
 
@@ -106,3 +107,45 @@ async def test_get_observations_screen_structured_content(monkeypatch, _dc_env):
     payload = sc["result"]
     assert payload["output_mode"] == "screen"
     assert payload["data"]["variable"]["dcid"] == "Count_Person"
+
+
+@pytest.mark.asyncio
+async def test_get_observations_file_structured_content_has_preview(monkeypatch, tmp_path, _dc_env):
+    """File-mode result carries the bounded preview + summary metadata in structured output."""
+    from fastmcp import Client
+
+    import datacommons_mcp.tools.observations as obs_mod
+    from datacommons_mcp.fastmcp_server import mcp
+
+    # Write exports to a temp dir, not the user's ~/Documents.
+    monkeypatch.setenv("DC_STORAGE_DIR", str(tmp_path))
+
+    response = ObservationToolResponse(
+        variable=Node(dcid="Count_Person", name="Population"),
+        place_observations=[
+            PlaceObservation(
+                place=Node(dcid="geoId/06", name="California", type_of=["State"]),
+                time_series=[("2020-01-01", 39.5), ("2021-01-01", 39.2)],
+            )
+        ],
+        source_metadata=FacetMetadata(source_id="census_pop"),
+    )
+    request = ObservationRequest(variable_dcid="Count_Person", place_dcid="geoId/06")
+
+    async def _fake_obs(*args, **kwargs):
+        return response, request, None
+
+    monkeypatch.setattr(obs_mod, "get_observations_service", _fake_obs)
+
+    async with Client(mcp) as client:
+        result = await client.call_tool(
+            "get_observations",
+            {"variable_dcid": "Count_Person", "place_dcid": "geoId/06", "output": "file"},
+        )
+
+    payload = result.structured_content["result"]
+    assert payload["output_mode"] == "file"
+    assert payload["preview"], "file result should carry a non-empty preview"
+    assert payload["preview"][0]["variable_name"] == "Population"
+    assert payload["columns"]
+    assert str(payload["rows_written"]) in payload["summary"]
