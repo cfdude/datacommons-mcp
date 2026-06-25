@@ -34,9 +34,11 @@ from datacommons_mcp.exceptions import (
     DataLookupError,
     InvalidDateFormatError,
     InvalidDateRangeError,
+    ResultTooLargeError,
 )
 from datacommons_mcp.services import (
     get_observations,
+    get_observations_paginated,
     search_indicators,
 )
 from datacommons_mcp.services.observations import _validate_and_build_request
@@ -55,6 +57,53 @@ class TestGetObservations:
         mock.fetch_entity_infos = AsyncMock()
         mock.fetch_entity_types = AsyncMock()
         return mock
+
+    # --- Size guardrail (item C). The guardrail lives only in get_observations_paginated
+    # (the function the tool calls); the non-paginated services.get_observations used by the
+    # other tests here stays unguarded, which is fine since no tool calls it. ---
+
+    async def test_paginated_child_query_over_place_limit_is_refused(self, mock_client):
+        """A child-place query spanning > max_places is refused BEFORE fetching."""
+        mock_client.count_child_places = AsyncMock(return_value=3238)
+        mock_client.fetch_obs_page = AsyncMock()
+        with pytest.raises(ResultTooLargeError, match="DC_MAX_PLACES"):
+            await get_observations_paginated(
+                client=mock_client,
+                variable_dcid="Count_Person",
+                place_dcid="country/USA",
+                child_place_type="County",
+                max_places=1000,
+            )
+        mock_client.count_child_places.assert_awaited_once_with("country/USA", "County")
+        mock_client.fetch_obs_page.assert_not_called()  # gate fires before the fetch
+
+    async def test_paginated_child_query_under_limit_proceeds_to_fetch(self, mock_client):
+        """A child-place query within the limit passes the gate and reaches the fetch."""
+        mock_client.count_child_places = AsyncMock(return_value=50)
+        # Use a sentinel at the fetch to prove we got past the gate without ResultTooLargeError.
+        mock_client.fetch_obs_page = AsyncMock(side_effect=RuntimeError("reached fetch"))
+        with pytest.raises(RuntimeError, match="reached fetch"):
+            await get_observations_paginated(
+                client=mock_client,
+                variable_dcid="Count_Person",
+                place_dcid="country/USA",
+                child_place_type="County",
+                max_places=1000,
+            )
+        mock_client.count_child_places.assert_awaited_once()
+
+    async def test_paginated_single_place_skips_the_gate(self, mock_client):
+        """A single-place query (no child_place_type) never calls the place-count gate."""
+        mock_client.count_child_places = AsyncMock()
+        mock_client.fetch_obs_page = AsyncMock(side_effect=RuntimeError("reached fetch"))
+        with pytest.raises(RuntimeError, match="reached fetch"):
+            await get_observations_paginated(
+                client=mock_client,
+                variable_dcid="Count_Person",
+                place_dcid="country/USA",
+                max_places=1,  # tiny limit, but no child_place_type -> gate skipped
+            )
+        mock_client.count_child_places.assert_not_called()
 
     async def test_input_validation_errors(self, mock_client):
         # Missing variable

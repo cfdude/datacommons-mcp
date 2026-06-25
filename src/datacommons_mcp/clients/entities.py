@@ -66,3 +66,15 @@ class _EntitiesMixin:
             place_dcids=parent_place_dcid, children_type=child_place_type, as_dict=True
         )
         return len(response.get(parent_place_dcid, [])) > 0
+
+    async def count_child_places(self, parent_place_dcid: str, child_place_type: str) -> int:
+        """Count the child places of a given type under a parent (cheap; place DCIDs only).
+
+        Counts ALL geographic children of the type, not only those with data for a
+        particular variable. Used by the size guardrail to estimate query magnitude
+        before fetching observations.
+        """
+        response = self.dc.node.fetch_place_children(
+            place_dcids=parent_place_dcid, children_type=child_place_type, as_dict=True
+        )
+        return len(response.get(parent_place_dcid, []))

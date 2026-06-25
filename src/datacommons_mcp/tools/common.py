@@ -27,6 +27,7 @@ from ..exceptions import (
     InvalidDateRangeError,
     InvalidInputError,
     NoDataFoundError,
+    ResultTooLargeError,
 )
 
 if TYPE_CHECKING:
@@ -50,6 +51,7 @@ _CLIENT_FACING_ERRORS = (
     NoDataFoundError,
     InvalidDateFormatError,
     InvalidDateRangeError,
+    ResultTooLargeError,
 )
 
 

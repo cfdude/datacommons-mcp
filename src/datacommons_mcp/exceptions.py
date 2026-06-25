@@ -37,6 +37,15 @@ class InvalidInputError(_ErrorStrMixin, ValueError):
     """Raised when a tool/service receives invalid client input."""
 
 
+class ResultTooLargeError(_ErrorStrMixin, ValueError):
+    """Raised when a query would materialize a response too large to hold in memory.
+
+    The input is valid; the *result* is too big (e.g. too many child places). The
+    message is actionable (suggests narrowing the query) and is surfaced to the
+    client, not masked.
+    """
+
+
 class InvalidDateFormatError(_ErrorStrMixin, ValueError):
     """Raised when a date string has an invalid format."""
 

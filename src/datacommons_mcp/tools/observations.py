@@ -152,6 +152,7 @@ async def get_observations(
             date=date,
             date_range_start=date_range_start,
             date_range_end=date_range_end,
+            max_places=config.max_places,
         )
 
         # Create output handler with settings from config
