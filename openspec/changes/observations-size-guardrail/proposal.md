@@ -8,7 +8,7 @@ A cheap row-count via the API's `select` is not available (the DC client's typed
 
 ## What Changes
 
-- **Add a config knob `DC_MAX_PLACES`** (`AppConfig`, default **1000**) — the maximum number of places a single `get_observations` call may span before it is refused. Calibrated from the probe (57 states ≈ 90 MB OK; 3,143 counties ≈ 1 GB), 1000 keeps peak RAM in the low-hundreds-of-MB range. Configurable so it can be tuned to the machine.
+- **Add a config knob `DC_MAX_PLACES`** (`AppConfig`, default **1000**) — the maximum number of places a single `get_observations` call may span before it is refused. Calibrated from the probe (57 states ≈ 90 MB OK; ~3,238 counties ≈ 1 GB), 1000 keeps peak RAM bounded for typical (latest/bounded-date) queries — it caps the *place* dimension, not the date/facet dimension, so a `date="all"` dense query over a few hundred places can still be heavy (item A is the precise fix). Configurable so it can be tuned to the machine.
 - **Add a client helper** `count_child_places(parent_dcid, child_place_type) -> int` (wraps `fetch_place_children`, mirroring `child_place_type_exists`).
 - **Guardrail in the observations service:** for a `child_place_type` query, count the children before fetching; if it exceeds `DC_MAX_PLACES`, raise a new domain error `ResultTooLargeError` with an actionable message (the place count, the `DC_MAX_PLACES` knob, and guidance: narrow by place type / date / fewer places, or wait for streaming). Single-place / explicit queries are not gated (they can't fan out).
 - **Surface it as an actionable ToolError:** add `ResultTooLargeError` to the error boundary's client-facing set so its guidance reaches the user (not masked).
@@ -24,7 +24,7 @@ Non-goals: NO streaming/pagination rebuild (that's `observations-true-streaming`
 
 ## Impact
 
-- **Code:** `config.py` (`DC_MAX_PLACES`); `clients/entities.py` (`count_child_places`); `services/observations.py` (the pre-fetch guardrail); `exceptions.py` (`ResultTooLargeError`); `servers/common.py` (add it to `_CLIENT_FACING_ERRORS`).
+- **Code:** `config.py` (`DC_MAX_PLACES`); `clients/entities.py` (`count_child_places`); `services/observations.py` (the pre-fetch guardrail); `exceptions.py` (`ResultTooLargeError`); `tools/common.py` (add it to `_CLIENT_FACING_ERRORS`).
 - **Tests:** child count over the limit → `ToolError` with the guidance substring; under the limit → proceeds; single-place query → no gate; the count helper.
 - **Docs:** note the limit + `DC_MAX_PLACES` in `docs/reference.md`.
 - **Risk:** LOW–MEDIUM. It refuses some currently-succeeding (but memory-dangerous) queries — intended, and reversible by raising `DC_MAX_PLACES`. The cheap pre-count adds one `fetch_place_children` call to child-place queries.
