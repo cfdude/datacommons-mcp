@@ -1235,6 +1235,10 @@ class TestFacetReduction:
         # C1: pC (only non-primary) is preserved with an EMPTY series (reconstructed from probe).
         assert set(places) == {"pA", "pB", "pC"}
         assert places["pC"].time_series == []
+        # ...and its name/type come from the probe-fed metadata (pins metadata carry-forward).
+        assert places["pC"].place.name == "C"
+        # Deterministic, API-ordered place list (not set-ordered).
+        assert [po.place.dcid for po in resp.place_observations] == ["pA", "pB", "pC"]
         assert len(places["pA"].time_series) == 3  # full series from the filtered fetch
         # C2: alternative_sources carries the non-primary source from the probe.
         assert any(a.source_id == "s2" for a in resp.alternative_sources)

@@ -449,7 +449,7 @@ async def get_observations_paginated(
     # the non-primary facet metadata for alternative_sources is only in the probe. Runs
     # AFTER the guardrail so a refused query never probes (the probe itself fans out all
     # places and would 500 beyond the API series cap — that needs place-sharding, A-ii).
-    place_dcids_override: set[str] | None = None
+    place_dcids_override: list[str] | None = None
     alternative_sources_override: list[AlternativeSource] | None = None
     metadata_response = None
     if (
@@ -466,7 +466,9 @@ async def get_observations_paginated(
         primary, per_source_counts = rank_primary_facet(probe_variable_data, None)
         if primary:
             observation_request.source_ids = [primary]
-            place_dcids_override = set(probe_variable_data.byEntity.keys())
+            # list (not set) to keep a deterministic, API-ordered place list — row order
+            # in the export must be stable across process restarts.
+            place_dcids_override = list(probe_variable_data.byEntity.keys())
             alternative_sources_override = _build_alternative_sources(
                 {s: c for s, c in per_source_counts.items() if s != primary},
                 probe_response.facets,
