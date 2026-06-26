@@ -24,4 +24,9 @@ plan, or a manual list). Follow these rules:
    ("paused X for Y" / "resumed X, reconciled vs Y") so the relationship survives outside
    this repo.
 5. **Keep `tasks.md` checkboxes truthful** — they are the source of truth for story progress.
+6. **Roadmap as backlog** — work you intend to do but haven't proposed yet can be
+   registered now with `/pm:epic add … --status planned` (any lane). Planned epics show
+   as ordered backlog in `PROJECT.md` and a `planned: N` count in the briefing, without a
+   "no change on disk" warning; `/pm:sync` flips an openspec planned epic to untriaged once
+   its change is proposed. Have a roadmap doc? Read it in-session and load each item this way.
 <!-- END pm-conductor rules -->

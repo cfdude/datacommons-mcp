@@ -41,7 +41,10 @@ from datacommons_mcp.services import (
     get_observations_paginated,
     search_indicators,
 )
-from datacommons_mcp.services.observations import _validate_and_build_request
+from datacommons_mcp.services.observations import (
+    _validate_and_build_request,
+    rank_primary_facet,
+)
 
 
 @pytest.mark.asyncio
@@ -1138,3 +1141,150 @@ class TestSearchIndicators:
             match=r"`places` must be specified when `parent_place` is provided.",
         ):
             await search_indicators(client=mock_client, query="population", parent_place="USA")
+
+
+def _obs_response(facet_obs_by_place: dict, facets: dict) -> ObservationApiResponse:
+    """Build an ObservationApiResponse from {place: {facet_id: [(date, value), ...]}}."""
+    by_entity = {}
+    for place, fmap in facet_obs_by_place.items():
+        ordered = [
+            {"facetId": fid, "observations": [{"date": d, "value": v} for d, v in obs]}
+            for fid, obs in fmap.items()
+        ]
+        by_entity[place] = {"orderedFacets": ordered}
+    return ObservationApiResponse.model_validate(
+        {"byVariable": {"Count_Person": {"byEntity": by_entity}}, "facets": facets}
+    )
+
+
+class TestFacetReduction:
+    """Item A-i: auto facet-reduction for big child-place date='all' exports."""
+
+    @pytest.fixture
+    def mock_client(self):
+        mock = Mock(spec_set=DCClient)
+        mock.count_child_places = AsyncMock(return_value=3)
+        mock.fetch_entity_names = AsyncMock(
+            return_value={
+                "Count_Person": "Population",
+                "parent": "Parent",
+                "pA": "A",
+                "pB": "B",
+                "pC": "C",
+            }
+        )
+        mock.fetch_entity_types = AsyncMock(return_value={"parent": ["Country"]})
+        return mock
+
+    def test_rank_primary_facet_picks_coverage_winner(self):
+        var = _obs_response(
+            {"pA": {"s1": [("2020", 1)]}, "pB": {"s1": [("2020", 2)]}, "pC": {"s2": [("2020", 3)]}},
+            {"s1": {"importName": "S1"}, "s2": {"importName": "S2"}},
+        ).byVariable["Count_Person"]
+        primary, counts = rank_primary_facet(var, None)
+        assert primary == "s1"  # covers 2 places vs s2's 1
+        assert counts == {"s1": 2, "s2": 1}
+
+    def test_rank_coverage_tie_breaks_by_latest_date(self):
+        # Both s1, s2 cover 2 places with 1 latest obs each (obs-count tiebreak degenerates
+        # at date=latest) -> later latest-date wins. Pins the documented A-i tiebreak.
+        var = _obs_response(
+            {
+                "pA": {"s1": [("2020", 1)], "s2": [("2021", 1)]},
+                "pB": {"s1": [("2020", 1)], "s2": [("2021", 1)]},
+            },
+            {"s1": {}, "s2": {}},
+        ).byVariable["Count_Person"]
+        primary, _ = rank_primary_facet(var, None)
+        assert primary == "s2"
+
+    @pytest.mark.asyncio
+    async def test_auto_reduction_probes_filters_and_carries_probe_forward(self, mock_client):
+        # Probe (latest, multi-facet): pC has ONLY the non-primary source s2.
+        probe = _obs_response(
+            {
+                "pA": {"s1": [("2022", 10)]},
+                "pB": {"s1": [("2022", 20)]},
+                "pC": {"s2": [("2022", 30)]},
+            },
+            {"s1": {"importName": "S1"}, "s2": {"importName": "S2"}},
+        )
+        # Filtered (all dates, s1 only): pC is OMITTED (it has no s1).
+        filtered = _obs_response(
+            {
+                "pA": {"s1": [("2020", 1), ("2021", 2), ("2022", 10)]},
+                "pB": {"s1": [("2020", 3), ("2022", 20)]},
+            },
+            {"s1": {"importName": "S1"}},
+        )
+        mock_client.fetch_obs_page = AsyncMock(side_effect=[(probe, None), (filtered, None)])
+
+        resp, req, _ = await get_observations_paginated(
+            client=mock_client,
+            variable_dcid="Count_Person",
+            place_dcid="parent",
+            child_place_type="County",
+            date="all",
+            max_places=5000,
+        )
+
+        # Two fetches: cheap latest probe, then the filtered full fetch to the primary.
+        assert mock_client.fetch_obs_page.await_count == 2
+        assert req.source_ids == ["s1"]
+        places = {po.place.dcid: po for po in resp.place_observations}
+        # C1: pC (only non-primary) is preserved with an EMPTY series (reconstructed from probe).
+        assert set(places) == {"pA", "pB", "pC"}
+        assert places["pC"].time_series == []
+        assert len(places["pA"].time_series) == 3  # full series from the filtered fetch
+        # C2: alternative_sources carries the non-primary source from the probe.
+        assert any(a.source_id == "s2" for a in resp.alternative_sources)
+
+    @pytest.mark.asyncio
+    async def test_no_probe_when_guardrail_refuses(self, mock_client):
+        mock_client.count_child_places = AsyncMock(return_value=10_000)
+        mock_client.fetch_obs_page = AsyncMock()
+        with pytest.raises(ResultTooLargeError):
+            await get_observations_paginated(
+                client=mock_client,
+                variable_dcid="Count_Person",
+                place_dcid="parent",
+                child_place_type="County",
+                date="all",
+                max_places=5000,
+            )
+        mock_client.fetch_obs_page.assert_not_called()  # probe runs AFTER the guardrail
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"place_dcid": "pA", "date": "all"},  # single place (no child_place_type)
+            {
+                "place_dcid": "parent",
+                "child_place_type": "County",
+                "date": "all",
+                "source_override": "s1",
+            },
+            {"place_dcid": "parent", "child_place_type": "County", "date": "latest"},
+            {"place_dcid": "parent", "child_place_type": "County", "date": "2020"},  # single date
+            {
+                "place_dcid": "parent",
+                "child_place_type": "County",
+                "date": "range",
+                "date_range_start": "2000",
+                "date_range_end": "2010",
+            },
+        ],
+    )
+    async def test_no_probe_for_unreduced_paths(self, mock_client, kwargs):
+        full = _obs_response({"pA": {"s1": [("2020", 1)]}}, {"s1": {"importName": "S1"}})
+        mock_client.fetch_obs_page = AsyncMock(return_value=(full, None))
+        await get_observations_paginated(
+            client=mock_client, variable_dcid="Count_Person", max_places=5000, **kwargs
+        )
+        assert mock_client.fetch_obs_page.await_count == 1  # no probe
+
+    def test_max_places_default_is_5000(self):
+        from datacommons_mcp.config import AppConfig
+
+        assert AppConfig.model_fields["max_places"].default == 5000
