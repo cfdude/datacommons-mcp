@@ -1,15 +1,26 @@
 ## ADDED Requirements
 
 ### Requirement: Large child-place exports auto-reduce to the primary facet
-For a `child_place_type` query with `date="all"` and no `source_override`, `get_observations` SHALL determine the primary source via a cheap probe and request only that facet, to cut server memory.
+For a `child_place_type` query at `date="all"` (with no date range/single-date and no `source_override`), the paginated observations path (`get_observations_paginated`, used by the `get_observations` tool) SHALL determine the primary source via a cheap probe and request only that facet, to cut server memory.
 
 #### Scenario: Auto facet-reduction on a big child-place query
-- **WHEN** `get_observations` runs a `child_place_type`, `date="all"` query with no `source_override`
-- **THEN** it first fetches the same query at `date="latest"` to rank facets, picks the primary facet id, and re-queries the full date range with `source_ids=[primary]` so the API returns only that facet — and the resulting observations are the single primary source per place (same shape as today)
+- **WHEN** the paginated path runs a `child_place_type`, `date="all"` query with no `source_override`
+- **THEN** it first fetches the same query at `date="latest"` to rank facets and pick the primary facet id, then re-queries the full date range with `source_ids=[primary]` so the API returns only that facet
 
 #### Scenario: The filtered fetch actually restricts the facet server-side
 - **WHEN** the second (filtered) fetch is issued
 - **THEN** it passes `filter_facet_ids=[primary]` to the API (via `source_ids`), so the raw response holds one facet, not all sources
+
+### Requirement: Reduced output is faithful to the non-reduced output
+Because `filter_facet_ids` returns only places that have the primary facet (verified), the reduced path SHALL reconstruct the full output from the kept probe so it matches today.
+
+#### Scenario: Places lacking the primary source are preserved as empty-series
+- **WHEN** some places have data only from non-primary sources (so the filtered fetch omits them)
+- **THEN** those places still appear in the result with an empty time-series — the same place set as the non-reduced path — reconstructed from the `latest` probe
+
+#### Scenario: alternative_sources is preserved
+- **WHEN** the reduced path builds the result
+- **THEN** `alternative_sources` is populated from the probe's per-source coverage (the same metadata the non-reduced path reports), not left empty
 
 ### Requirement: Auto-reduction is correctly scoped
 Auto facet-reduction SHALL apply only where it is safe and beneficial, leaving other queries unchanged.
@@ -25,6 +36,17 @@ Auto facet-reduction SHALL apply only where it is safe and beneficial, leaving o
 #### Scenario: latest / single-date and date-range queries are unchanged
 - **WHEN** the query is `date="latest"`, a single date, or an explicit date range
 - **THEN** no auto-reduction probe runs (these either have no memory problem or the `latest` probe's coverage may not match a range-filtered ranking) and behavior is as before
+
+#### Scenario: The gate distinguishes true date="all" from single-date/range
+- **WHEN** deciding whether to auto-reduce
+- **THEN** the gate requires `date_type == ObservationDateType.ALL AND date_filter is None` (since a single date and a range both set `date_type=ALL` with a non-None `date_filter`), so single-date and range queries are correctly excluded
+
+### Requirement: The probe runs only after the size guardrail
+The auto-reduction probe SHALL NOT run for a query the size guardrail refuses.
+
+#### Scenario: A beyond-budget query is refused before any probe
+- **WHEN** a `child_place_type` `date="all"` query exceeds `DC_MAX_PLACES`
+- **THEN** the guardrail raises `ResultTooLargeError` BEFORE the probe, and zero probe fetches are issued (the probe itself fans out all places and would 500 — only place-sharding/A-ii handles beyond-cap)
 
 ### Requirement: Facet ranking is shared, not duplicated
 The primary-facet ranking SHALL be a single reusable function used by both the probe and the existing full-response path.
