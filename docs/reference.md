@@ -105,10 +105,18 @@ companion metadata files alongside the main export.
 | `DC_STORAGE_DIR` | `~/Documents/datacommons-data` | Directory where exported files are written. |
 | `DC_OUTPUT_FORMAT` | `csv` | Export format: `csv` or `json`. |
 | `DC_SCREEN_ROW_THRESHOLD` | `500` | Max rows returned inline; larger responses export to a file. |
+| `DC_MAX_PLACES` | `1000` | Max child places a single `get_observations` query may span before it is refused (see below). |
 | `DC_MAX_PAGES` | `100` | Max API pages fetched per paginated request. |
 | `DC_INCLUDE_LINEAGE` | `true` | Include data-lineage headers in CSV exports. |
 | `DC_MULTI_FILE_EXPORT` | `false` | Write companion metadata files alongside exports. |
 | `DC_TYPE` | `base` | `base` (datacommons.org) or `custom` (a Custom Data Commons instance). |
+
+> **Very large queries.** `get_observations` builds the full result in server memory before
+> writing, so a query spanning a huge geography (e.g. *all US counties × all years*) can use
+> a lot of RAM. As a safeguard, a `child_place_type` query spanning more than `DC_MAX_PLACES`
+> child places is **refused** with guidance to narrow it (a specific date/range, a coarser
+> place type, or fewer places). Raise `DC_MAX_PLACES` on a high-memory machine, or lower it to
+> be cautious. (This is a stopgap; streaming support for large exports is planned.)
 
 ### Custom Data Commons
 

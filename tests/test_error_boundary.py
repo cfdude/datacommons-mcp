@@ -10,6 +10,7 @@ from datacommons_mcp.exceptions import (
     InvalidDateRangeError,
     InvalidInputError,
     NoDataFoundError,
+    ResultTooLargeError,
 )
 from datacommons_mcp.tools.common import _GENERIC_ERROR_MESSAGE, tool_error_boundary
 
@@ -24,6 +25,7 @@ from datacommons_mcp.tools.common import _GENERIC_ERROR_MESSAGE, tool_error_boun
         NoDataFoundError,
         InvalidDateFormatError,
         InvalidDateRangeError,
+        ResultTooLargeError,
     ],
 )
 def test_domain_exception_becomes_tool_error_with_message(exc_cls):

@@ -88,6 +88,17 @@ class AppConfig(BaseSettings):
         ge=1,
         le=10000,
     )
+    max_places: int = Field(
+        default=1000,
+        alias="DC_MAX_PLACES",
+        description=(
+            "Max child places a single get_observations query may span before it is "
+            "refused (the whole result is materialized in server memory before writing). "
+            "Counts all child places of the type, not only those with data."
+        ),
+        ge=1,
+        le=100000,
+    )
     include_lineage: bool = Field(
         default=True,
         alias="DC_INCLUDE_LINEAGE",

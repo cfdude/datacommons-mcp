@@ -35,7 +35,11 @@ from datacommons_mcp.data_models.observations import (
     SourceProcessingResult,
     TimeSeriesPoint,
 )
-from datacommons_mcp.exceptions import DataLookupError, InvalidInputError
+from datacommons_mcp.exceptions import (
+    DataLookupError,
+    InvalidInputError,
+    ResultTooLargeError,
+)
 from datacommons_mcp.utils import filter_by_date
 
 logger = logging.getLogger(__name__)
@@ -333,11 +337,16 @@ async def get_observations_paginated(
     date: str = ObservationDateType.LATEST.value,
     date_range_start: str | None = None,
     date_range_end: str | None = None,
+    max_places: int | None = None,
 ) -> tuple[ObservationToolResponse, ObservationRequest, str | None]:
     """Fetch observations with pagination support.
 
     This is the paginated version of get_observations that returns
     the next_token for pagination along with the processed response.
+
+    If ``max_places`` is set and a child-place query would span more child places
+    than that, a ``ResultTooLargeError`` is raised BEFORE the fetch (the whole
+    result is materialized in memory, so a very large geography would exhaust RAM).
 
     Returns:
         A tuple of (processed_response, request, next_token).
@@ -354,6 +363,27 @@ async def get_observations_paginated(
         date_range_start=date_range_start,
         date_range_end=date_range_end,
     )
+
+    # Size guardrail: refuse fan-out queries spanning too many child places before
+    # the (fully-materialized-in-memory) fetch. Counts ALL child places of the type,
+    # not only those with data. Stopgap until true streaming lands.
+    if (
+        max_places is not None
+        and observation_request.child_place_type
+        and observation_request.place_dcid
+    ):
+        n_places = await client.count_child_places(
+            observation_request.place_dcid, observation_request.child_place_type
+        )
+        if n_places > max_places:
+            raise ResultTooLargeError(
+                f"This query spans {n_places} {observation_request.child_place_type} places "
+                f"under {observation_request.place_dcid} (counting all child places, not only "
+                f"those with data), which would build a very large response in server memory "
+                f"(the full result is materialized before writing). The limit is "
+                f"DC_MAX_PLACES={max_places}. Narrow it — a specific date or range, a coarser "
+                f"place type, or fewer places."
+            )
 
     # Use fetch_obs_page to get both response and next_token
     api_response, next_token = await client.fetch_obs_page(observation_request)
@@ -383,6 +413,12 @@ async def get_observations(
     date_range_end: str | None = None,
 ) -> ObservationToolResponse:
     """Fetches statistical observations from Data Commons.
+
+    NOTE: This non-paginated entry point has NO size guardrail. The MCP tool uses
+    ``get_observations_paginated`` (which gates child-place fan-out via ``max_places``);
+    this function is currently test-only. Any new caller that fetches large child-place
+    geographies should route through ``get_observations_paginated`` instead, or it can
+    exhaust server memory.
 
     This service orchestrates the retrieval of observation data by handling
     input validation, place name resolution, data fetching from the client,

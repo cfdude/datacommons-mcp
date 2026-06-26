@@ -1348,3 +1348,18 @@ class TestFetchEntityInfos:
         mock_dc.node.fetch_property_values.assert_called_once_with(
             node_dcids=["geoId/06", "country/USA"], properties=["name", "typeOf"]
         )
+
+
+@pytest.mark.asyncio
+async def test_count_child_places(mocked_datacommons_client):
+    """count_child_places returns the number of children of the parent (cheap node call)."""
+    client = DCClient(dc=mocked_datacommons_client)
+    mocked_datacommons_client.node = Mock()
+    mocked_datacommons_client.node.fetch_place_children = Mock(
+        return_value={"country/USA": ["geoId/06", "geoId/48", "geoId/36"]}
+    )
+
+    assert await client.count_child_places("country/USA", "State") == 3
+    mocked_datacommons_client.node.fetch_place_children.assert_called_once_with(
+        place_dcids="country/USA", children_type="State", as_dict=True
+    )

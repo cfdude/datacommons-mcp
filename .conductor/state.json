@@ -1,11 +1,21 @@
 {
   "version": 1,
-  "active": "observations-file-preview",
+  "active": "observations-size-guardrail",
   "epics": [
     {
-      "id": "observations-file-preview",
-      "title": "observations-file-preview",
-      "priority": "P2",
+      "id": "observations-true-streaming",
+      "title": "True streaming for get_observations (O(1) memory via paginated base.post)",
+      "priority": "P1",
+      "status": "queued",
+      "role": "epic",
+      "lane": "openspec",
+      "links": [],
+      "reconcileNeeded": false
+    },
+    {
+      "id": "observations-size-guardrail",
+      "title": "observations-size-guardrail",
+      "priority": "P1",
       "status": "active",
       "role": "epic",
       "lane": "openspec",
