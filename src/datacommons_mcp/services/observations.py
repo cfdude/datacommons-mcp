@@ -414,6 +414,12 @@ async def get_observations(
 ) -> ObservationToolResponse:
     """Fetches statistical observations from Data Commons.
 
+    NOTE: This non-paginated entry point has NO size guardrail. The MCP tool uses
+    ``get_observations_paginated`` (which gates child-place fan-out via ``max_places``);
+    this function is currently test-only. Any new caller that fetches large child-place
+    geographies should route through ``get_observations_paginated`` instead, or it can
+    exhaust server memory.
+
     This service orchestrates the retrieval of observation data by handling
     input validation, place name resolution, data fetching from the client,
     source selection, and metadata enrichment to produce a structured response.

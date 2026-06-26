@@ -66,7 +66,7 @@ class TestGetObservations:
         """A child-place query spanning > max_places is refused BEFORE fetching."""
         mock_client.count_child_places = AsyncMock(return_value=3238)
         mock_client.fetch_obs_page = AsyncMock()
-        with pytest.raises(ResultTooLargeError, match="DC_MAX_PLACES"):
+        with pytest.raises(ResultTooLargeError) as ei:
             await get_observations_paginated(
                 client=mock_client,
                 variable_dcid="Count_Person",
@@ -74,8 +74,28 @@ class TestGetObservations:
                 child_place_type="County",
                 max_places=1000,
             )
+        # Lock the actionable message content (count, limit, narrowing guidance, and the
+        # sparse-variable disclosure) so a future edit can't silently drop them.
+        msg = str(ei.value)
+        assert "3238" in msg
+        assert "DC_MAX_PLACES=1000" in msg
+        assert "narrow" in msg.lower()
+        assert "not only those with data" in msg
         mock_client.count_child_places.assert_awaited_once_with("country/USA", "County")
         mock_client.fetch_obs_page.assert_not_called()  # gate fires before the fetch
+
+    async def test_paginated_child_query_at_limit_proceeds(self, mock_client):
+        """At exactly the limit the query proceeds (only `>` is refused)."""
+        mock_client.count_child_places = AsyncMock(return_value=1000)
+        mock_client.fetch_obs_page = AsyncMock(side_effect=RuntimeError("reached fetch"))
+        with pytest.raises(RuntimeError, match="reached fetch"):
+            await get_observations_paginated(
+                client=mock_client,
+                variable_dcid="Count_Person",
+                place_dcid="country/USA",
+                child_place_type="County",
+                max_places=1000,
+            )
 
     async def test_paginated_child_query_under_limit_proceeds_to_fetch(self, mock_client):
         """A child-place query within the limit passes the gate and reaches the fetch."""
