@@ -15,8 +15,9 @@
 import asyncio
 import logging
 from collections import defaultdict
+from collections.abc import Iterable
 from datetime import datetime
-from typing import cast
+from typing import Any, cast
 
 from datacommons_client.models.observation import ByVariable
 
@@ -136,6 +137,59 @@ async def _fetch_all_metadata(
     return metadata_map
 
 
+def rank_primary_facet(
+    variable_data: ByVariable, date_filter: DateRange | None
+) -> tuple[str | None, dict[str, int]]:
+    """Rank a variable's facets and pick the primary source.
+
+    Returns ``(primary_source_id_or_None, source_places_found_counts)``. Shared by the
+    full-response path and the facet-reduction probe (item A-i) so selection logic cannot
+    drift between the two. Ranking key per source: (place coverage, total obs count,
+    latest date, lower average facet index, source id).
+    """
+    source_places_found_counts: defaultdict[str, int] = defaultdict(int)
+    source_date_counts: defaultdict[str, int] = defaultdict(int)
+    source_latest_dates: defaultdict[str, datetime] = defaultdict(lambda: datetime.min)
+    source_indices: defaultdict[str, list[int]] = defaultdict(list)
+
+    for place_data in variable_data.byEntity.values():
+        for i, facet_data in enumerate(place_data.orderedFacets):
+            source_id = facet_data.facetId
+            filtered_obs = filter_by_date(facet_data.observations, date_filter)
+            if filtered_obs:
+                source_places_found_counts[source_id] += 1
+                source_date_counts[source_id] += len(filtered_obs)
+                latest_date_str = max(o.date for o in filtered_obs)
+                # Store the index to calculate average rank later. Lower is better.
+                source_indices[source_id].append(i)
+
+                latest_date = ObservationDate.parse_date(latest_date_str)
+                if latest_date > source_latest_dates[source_id]:
+                    source_latest_dates[source_id] = latest_date
+
+    if not source_places_found_counts:
+        return None, {}
+
+    # Calculate the average index for each source. A lower average is better.
+    source_avg_indices = {
+        src_id: sum(indices) / len(indices) for src_id, indices in source_indices.items()
+    }
+
+    primary_source = max(
+        source_places_found_counts.keys(),
+        key=lambda src_id: (
+            source_places_found_counts[src_id],
+            source_date_counts[src_id],
+            source_latest_dates[src_id],
+            # Lower index in the original OrderedFacets list is better, so we negate it.
+            -source_avg_indices.get(src_id, float("inf")),
+            # Final tie-breaker
+            src_id,
+        ),
+    )
+    return primary_source, dict(source_places_found_counts)
+
+
 # Streamlined helper method for selecting the primary source
 def _process_sources_and_filter_observations(
     variable_data: ByVariable, request: ObservationRequest, source_override: str | None
@@ -166,49 +220,12 @@ def _process_sources_and_filter_observations(
             processed_data_by_place=processed_data_by_place,
         )
 
-    # Iterate all sources to select primary source and build metadata map
-    source_places_found_counts: defaultdict[str, int] = defaultdict(int)
-    source_date_counts: defaultdict[str, int] = defaultdict(int)
-    source_latest_dates: defaultdict[str, datetime] = defaultdict(lambda: datetime.min)
-    source_indices: defaultdict[str, list[int]] = defaultdict(list)
-
-    # First pass: gather statistics for all available sources to rank them.
-    for place_data in variable_data.byEntity.values():
-        for i, facet_data in enumerate(place_data.orderedFacets):
-            source_id = facet_data.facetId
-            filtered_obs = filter_by_date(facet_data.observations, request.date_filter)
-            if filtered_obs:
-                source_places_found_counts[source_id] += 1
-                source_date_counts[source_id] += len(filtered_obs)
-                latest_date_str = max(o.date for o in filtered_obs)
-                # Store the index to calculate average rank later. Lower is better.
-                source_indices[source_id].append(i)
-
-                latest_date = ObservationDate.parse_date(latest_date_str)
-                if latest_date > source_latest_dates[source_id]:
-                    source_latest_dates[source_id] = latest_date
-
-    if not source_places_found_counts:
-        return SourceProcessingResult()
-
-    # Calculate the average index for each source. A lower average is better.
-    source_avg_indices = {
-        src_id: sum(indices) / len(indices) for src_id, indices in source_indices.items()
-    }
-
-    primary_source = max(
-        source_places_found_counts.keys(),
-        key=lambda src_id: (
-            source_places_found_counts[src_id],
-            source_date_counts[src_id],
-            source_latest_dates[src_id],
-            # Lower index in the original OrderedFacets list is better, so we
-            # negate it.
-            -source_avg_indices.get(src_id, float("inf")),
-            # Final tie-breaker
-            src_id,
-        ),
+    # Rank facets and pick the primary source (shared with the facet-reduction probe).
+    primary_source, source_places_found_counts = rank_primary_facet(
+        variable_data, request.date_filter
     )
+    if primary_source is None:
+        return SourceProcessingResult()
 
     alternative_source_counts = {
         src_id: count
@@ -262,13 +279,50 @@ def _create_place_observation(
     )
 
 
+def _build_alternative_sources(
+    alternative_source_counts: dict[str, int],
+    facets: dict[str, Any],
+    num_processed_places: int,
+) -> list[AlternativeSource]:
+    """Build AlternativeSource entries from per-source counts + facet metadata.
+
+    Shared by the full-response path and the facet-reduction path (item A-i), which
+    passes the PROBE's counts + facets — the filtered fetch's response lacks the
+    non-primary facets, so their metadata must come from the probe.
+    """
+    alternatives: list[AlternativeSource] = []
+    for alt_source_id, count in alternative_source_counts.items():
+        facet_metadata = facets.get(alt_source_id)
+        # If there's only one place in the response, set count to None.
+        places_found_count = count if num_processed_places > 1 else None
+        if facet_metadata:
+            alternatives.append(
+                AlternativeSource(
+                    source_id=alt_source_id,
+                    places_found_count=places_found_count,
+                    **facet_metadata.to_dict(),
+                )
+            )
+    return alternatives
+
+
 async def _build_final_response(
     request: ObservationRequest,
     api_response: ObservationApiResponse,
     metadata_map: dict[str, Node],
+    *,
+    place_dcids_override: Iterable[str] | None = None,
+    alternative_sources_override: list[AlternativeSource] | None = None,
 ) -> ObservationToolResponse:
     """
     Builds the final ObservationToolResponse model from API data and metadata.
+
+    For the facet-reduction path (item A-i) the API response holds only the primary
+    facet, so two carry-forward overrides keep the output faithful to the non-reduced
+    path: ``place_dcids_override`` supplies the FULL place set (from the probe — the
+    filtered fetch drops places lacking the primary facet, which must still appear with
+    an empty time-series), and ``alternative_sources_override`` supplies the
+    alternative-source metadata (rebuilt from the probe).
     """
     variable_data = api_response.byVariable.get(request.variable_dcid, ByVariable({}))
     source_override: str | None = request.source_ids[0] if request.source_ids else None
@@ -296,10 +350,13 @@ async def _build_final_response(
         parent_metadata = metadata_map.get(request.place_dcid)
         final_response.resolved_parent_place = parent_metadata
 
-    # Iterate over all places from the original API response to ensure all child
-    # places are included in the final result, even if they have no data from
-    # the primary source.
-    all_places_in_response = variable_data.byEntity.keys()
+    # Iterate over all places to ensure every child place is included in the final
+    # result, even with no data from the primary source. In the facet-reduction path
+    # the filtered response omits places lacking the primary facet, so the full place
+    # set comes from the probe via place_dcids_override.
+    all_places_in_response = (
+        place_dcids_override if place_dcids_override is not None else variable_data.byEntity.keys()
+    )
     for obs_place_dcid in all_places_in_response:
         preprocessed_data = source_result.processed_data_by_place.get(obs_place_dcid)
         place_observation = _create_place_observation(
@@ -309,20 +366,18 @@ async def _build_final_response(
         )
         final_response.place_observations.append(place_observation)
 
-    for alt_source_id, count in source_result.alternative_source_counts.items():
-        facet_metadata = api_response.facets.get(alt_source_id)
-
-        # If there's only one place in the response, set count to None
-        places_found_count = count if len(source_result.processed_data_by_place) > 1 else None
-
-        if facet_metadata:
-            final_response.alternative_sources.append(
-                AlternativeSource(
-                    source_id=alt_source_id,
-                    places_found_count=places_found_count,
-                    **facet_metadata.to_dict(),
-                )
+    # Alternative-source metadata: the facet-reduction path supplies it from the probe
+    # (the filtered response has no non-primary facets); otherwise build it here.
+    if alternative_sources_override is not None:
+        final_response.alternative_sources.extend(alternative_sources_override)
+    else:
+        final_response.alternative_sources.extend(
+            _build_alternative_sources(
+                source_result.alternative_source_counts,
+                api_response.facets,
+                len(source_result.processed_data_by_place),
             )
+        )
 
     return final_response
 
@@ -385,17 +440,57 @@ async def get_observations_paginated(
                 f"place type, or fewer places."
             )
 
+    # --- Auto facet-reduction (item A-i) ---
+    # A big child-place date="all" query pulls every source-facet (~10x the data we keep,
+    # since we render one primary source per place) and peaks ~1 GB RSS. Probe at
+    # date="latest" to pick the primary facet cheaply, then fetch ONLY that facet. Carry
+    # the probe forward to stay output-faithful: the filtered fetch drops places lacking
+    # the primary facet (verified live), which must still appear with an empty series, and
+    # the non-primary facet metadata for alternative_sources is only in the probe. Runs
+    # AFTER the guardrail so a refused query never probes (the probe itself fans out all
+    # places and would 500 beyond the API series cap — that needs place-sharding, A-ii).
+    place_dcids_override: list[str] | None = None
+    alternative_sources_override: list[AlternativeSource] | None = None
+    metadata_response = None
+    if (
+        observation_request.child_place_type
+        and observation_request.date_type == ObservationDateType.ALL
+        and observation_request.date_filter is None
+        and not observation_request.source_ids
+    ):
+        probe_request = observation_request.model_copy(
+            update={"date_type": ObservationDateType.LATEST, "date_filter": None}
+        )
+        probe_response, _ = await client.fetch_obs_page(probe_request)
+        probe_variable_data = probe_response.byVariable.get(variable_dcid, ByVariable({}))
+        primary, per_source_counts = rank_primary_facet(probe_variable_data, None)
+        if primary:
+            observation_request.source_ids = [primary]
+            # list (not set) to keep a deterministic, API-ordered place list — row order
+            # in the export must be stable across process restarts.
+            place_dcids_override = list(probe_variable_data.byEntity.keys())
+            alternative_sources_override = _build_alternative_sources(
+                {s: c for s, c in per_source_counts.items() if s != primary},
+                probe_response.facets,
+                per_source_counts.get(primary, 0),
+            )
+            # Names/types for ALL places come from the probe — the filtered fetch omits
+            # places lacking the primary facet.
+            metadata_response = probe_response
+
     # Use fetch_obs_page to get both response and next_token
     api_response, next_token = await client.fetch_obs_page(observation_request)
 
     metadata_map = await _fetch_all_metadata(
-        client, variable_dcid, api_response, observation_request.place_dcid
+        client, variable_dcid, metadata_response or api_response, observation_request.place_dcid
     )
 
     processed_response = await _build_final_response(
         request=observation_request,
         api_response=api_response,
         metadata_map=metadata_map,
+        place_dcids_override=place_dcids_override,
+        alternative_sources_override=alternative_sources_override,
     )
 
     return processed_response, observation_request, next_token

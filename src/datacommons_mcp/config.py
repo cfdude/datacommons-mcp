@@ -89,12 +89,15 @@ class AppConfig(BaseSettings):
         le=10000,
     )
     max_places: int = Field(
-        default=1000,
+        default=5000,
         alias="DC_MAX_PLACES",
         description=(
             "Max child places a single get_observations query may span before it is "
-            "refused (the whole result is materialized in server memory before writing). "
-            "Counts all child places of the type, not only those with data."
+            "refused. The whole result is materialized in server memory before writing; "
+            "facet auto-reduction (item A-i) cut that ~10x, so county-scale exports are "
+            "permitted. Counts all child places of the type, not only those with data. "
+            "NOTE: unreduced wide date-range child queries stay memory-heavy at this "
+            "scale until place-sharding lands."
         ),
         ge=1,
         le=100000,

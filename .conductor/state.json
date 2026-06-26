@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "active": "observations-size-guardrail",
+  "active": "observations-facet-reduction",
   "epics": [
     {
-      "id": "observations-true-streaming",
-      "title": "True streaming for get_observations (O(1) memory via paginated base.post)",
-      "priority": "P1",
+      "id": "observations-place-sharding",
+      "title": "Place-sharding for beyond-cap big exports (fetch_observations_by_entity_dcid in batches; A-ii)",
+      "priority": "P2",
       "status": "queued",
       "role": "epic",
       "lane": "openspec",
@@ -13,8 +13,8 @@
       "reconcileNeeded": false
     },
     {
-      "id": "observations-size-guardrail",
-      "title": "observations-size-guardrail",
+      "id": "observations-facet-reduction",
+      "title": "observations-facet-reduction",
       "priority": "P1",
       "status": "active",
       "role": "epic",
@@ -24,5 +24,5 @@
     }
   ],
   "detourStack": [],
-  "pmVersion": "0.3.0"
+  "pmVersion": "0.5.0"
 }
