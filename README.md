@@ -7,12 +7,13 @@ as Claude Desktop, Claude Code, and ChatGPT.
 Data Commons is an open knowledge repository that unifies thousands of public datasets
 (census, health, economics, climate, and more) behind a single graph. This server lets an
 MCP-enabled client discover the right statistical variables and places, then fetch the actual
-observations — automatically streaming large results to CSV so they stay usable in other tools.
+observations — automatically exporting large results to CSV in **bounded memory**, even for very
+large geographies (e.g. *all US census tracts*), so they stay usable in other tools.
 
 > This is [`cfdude/datacommons-mcp`](https://github.com/cfdude/datacommons-mcp), a
 > heavily-redesigned downstream fork. It builds on Google's Data Commons and originated from the
 > [Data Commons agent-toolkit](https://github.com/datacommonsorg/agent-toolkit), but this fork is
-> **not** published to PyPI and is documented independently here. Server version **1.3.1**.
+> **not** published to PyPI and is documented independently here. Server version **1.4.0**.
 
 ## The two tools
 
@@ -21,7 +22,7 @@ This server exposes exactly two tools:
 | Tool | What it does |
 | --- | --- |
 | **`search_indicators`** | Finds statistical variables and topics (and which places actually have data for them). **Call this first** to discover valid variable + place DCIDs. |
-| **`get_observations`** | Fetches the actual statistical data for a variable + place(s). Small results come back inline; large results stream to a CSV/JSON file. |
+| **`get_observations`** | Fetches the actual statistical data for a variable + place(s). Small results come back inline; large results export to a CSV/JSON file (with a data preview), and very large geographies are handled in bounded memory via place-sharding. |
 
 The typical flow: `search_indicators` to find DCIDs → `get_observations` to pull the numbers.
 See the [reference](docs/reference.md) for the structured shapes each tool returns and example prompts.
@@ -53,12 +54,29 @@ Every client needs a Data Commons API key.
 `get_observations` decides between two output modes based on result size:
 
 - **Screen (inline).** Small results are returned directly in the response (`output_mode: "screen"`).
-- **File (export).** Large or paginated results stream to a file on disk
-  (`output_mode: "file"`), and the response carries `file_path`, `rows_written`, `pages_fetched`,
-  `file_size_bytes`, `unique_places_count`, and `format` instead of the raw rows.
+- **File (export).** Large results are written to a file on disk (`output_mode: "file"`). Instead of
+  the raw rows, the response carries `file_path`, `rows_written`, `file_size_bytes`,
+  `unique_places_count`, `format`, plus a **`preview`** (the first rows, so the assistant can see the
+  content without opening the file), a **`summary`**, `variable_name`, and `columns`.
 
 The cutover is controlled by `DC_SCREEN_ROW_THRESHOLD` (default **500** rows). Exports default to
 **CSV** (`DC_OUTPUT_FORMAT`), so results drop straight into spreadsheets and data tools.
+
+### Large & very large datasets (memory-bounded)
+
+The Data Commons API can't stream or paginate and rejects oversized requests, so the server keeps
+big exports memory-bounded in two automatic layers — no extra flags:
+
+- **Source auto-selection.** A large child-place export (e.g. *all US counties × all years*) is
+  fetched as a single primary source per place (auto-selected), cutting peak memory ~10× (≈1 GB →
+  ≈150 MB) with the same result. Pass an explicit source for exact control.
+- **Place-sharding.** A query spanning more places than `DC_SHARD_SIZE` (e.g. *all US census
+  tracts*, ~97k) is exported by sharding the place list into batches, writing each to one CSV in
+  roughly one-shard memory. The largest exports take a few minutes; batches that hit the API's size
+  limits are split and retried automatically. Only queries above the `DC_MAX_PLACES` ceiling are
+  refused.
+- **Coverage signal.** If the chosen source doesn't cover every place (possible for
+  regionally-sourced variables), the result's `places_missing` reports how many.
 
 ### Data lineage
 
@@ -78,7 +96,8 @@ companion metadata files alongside the main export. Off by default.
 | `DC_STORAGE_DIR` | `~/Documents/datacommons-data` | Directory where exported files are written. |
 | `DC_OUTPUT_FORMAT` | `csv` | Export format: `csv` or `json`. |
 | `DC_SCREEN_ROW_THRESHOLD` | `500` | Max rows returned inline; larger responses export to a file. |
-| `DC_MAX_PAGES` | `100` | Max API pages fetched per paginated request. |
+| `DC_MAX_PLACES` | `150000` | Absolute ceiling on child places per query; above it, the query is refused. |
+| `DC_SHARD_SIZE` | `15000` | Child-place queries larger than this are exported by sharding into batches. |
 | `DC_INCLUDE_LINEAGE` | `true` | Include data-lineage headers in CSV exports. |
 | `DC_MULTI_FILE_EXPORT` | `false` | Write companion metadata files alongside exports. |
 | `DC_TYPE` | `base` | `base` (datacommons.org) or `custom` (a Custom Data Commons instance). |

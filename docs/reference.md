@@ -57,14 +57,14 @@ Fetches actual observations for a variable + place(s). Returns a discriminated u
 | `output_mode` | `"screen"` |
 | `data` | The observation data, returned inline. |
 
-**File (large/paginated results, written to disk):**
+**File (large results, written to disk):**
 
 | Field | Meaning |
 | --- | --- |
 | `output_mode` | `"file"` |
 | `file_path` | Path to the written export file (server-local). |
 | `rows_written` | Total observation rows written. |
-| `pages_fetched` | API pages fetched during export. |
+| `pages_fetched` | Number of fetches written to the file (the shard count for a sharded export; 1 otherwise). |
 | `file_size_bytes` | Size of the written file. |
 | `unique_places_count` | Distinct places in the export. |
 | `format` | `"csv"` or `"json"`. |
@@ -72,6 +72,7 @@ Fetches actual observations for a variable + place(s). Returns a discriminated u
 | `columns` | The column headers of the export. |
 | `variable_name` | Display name of the variable. |
 | `summary` | One-line summary: total rows written + the file path. |
+| `places_missing` | Sharded exports only: requested places the chosen source did not cover (0 normally). |
 
 > The full dataset always goes to the file; `preview` is only a small sample so the model can confirm and reason about the result inline.
 
@@ -89,7 +90,7 @@ Fetches actual observations for a variable + place(s). Returns a discriminated u
 
 - **Inline (`screen`)** when the result is at or below `DC_SCREEN_ROW_THRESHOLD` (default **500**
   rows) — the data comes back in the response.
-- **File (`file`)** when the result is larger or paginated — rows stream to a file under the storage
+- **File (`file`)** when the result is larger — rows are written to a file under the storage
   directory, and the response carries the export metadata above instead of raw rows.
 
 Exports default to **CSV** (`DC_OUTPUT_FORMAT`), so results are immediately usable in spreadsheets
@@ -107,7 +108,8 @@ companion metadata files alongside the main export.
 | `DC_SCREEN_ROW_THRESHOLD` | `500` | Max rows returned inline; larger responses export to a file. |
 | `DC_MAX_PLACES` | `150000` | Absolute ceiling on child places per query; above it the query is refused (see below). |
 | `DC_SHARD_SIZE` | `15000` | Child-place queries larger than this are exported by sharding into batches of this size. |
-| `DC_MAX_PAGES` | `100` | Max API pages fetched per paginated request. |
+| `DC_SHARD_MIN` | `1000` | Floor batch size for adaptive retry (a batch that hits the API's size wall is halved down to this). |
+| `DC_SHARD_FACET_MIN_COVERAGE` | `0.8` | If the chosen source covers less than this fraction of a batch's places, the shortfall is reported in `places_missing`. |
 | `DC_INCLUDE_LINEAGE` | `true` | Include data-lineage headers in CSV exports. |
 | `DC_MULTI_FILE_EXPORT` | `false` | Write companion metadata files alongside exports. |
 | `DC_TYPE` | `base` | `base` (datacommons.org) or `custom` (a Custom Data Commons instance). |

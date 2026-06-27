@@ -4,7 +4,7 @@ Claude Desktop is the Anthropic desktop app. The easiest way to add this server 
 **`.mcpb` extension** — a single file you install through the app's UI, with the API key entered
 in a form (no terminal, no JSON editing).
 
-Works on **macOS and Windows** (both verified on version 1.3.1).
+Works on **macOS and Windows** (both verified on version 1.4.0).
 
 ## Prerequisite: install `uv`
 
