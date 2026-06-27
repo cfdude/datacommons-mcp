@@ -2,8 +2,8 @@
   "manifest_version": "0.2",
   "name": "datacommons-mcp",
   "display_name": "Data Commons MCP",
-  "version": "1.3.1",
-  "description": "Access the Data Commons Knowledge Graph with automatic large dataset handling, CSV export, and data lineage tracking.",
+  "version": "1.4.0",
+  "description": "Access the Data Commons Knowledge Graph with automatic large-dataset handling — memory-bounded CSV export (place-sharding for very large geographies), data preview, source auto-selection, and data lineage tracking.",
   "author": {
     "name": "DataCommons",
     "url": "https://github.com/cfdude/datacommons-mcp"
@@ -49,7 +49,7 @@
   "tools": [
     {
       "name": "get_observations",
-      "description": "Get statistical observations from Data Commons. Supports automatic CSV export for large datasets (>500 rows) with data lineage headers."
+      "description": "Get statistical observations from Data Commons. Large results auto-export to CSV with data-lineage headers and a data preview; very large geographies (e.g. all US counties or census tracts) are exported in bounded memory via place-sharding, with the primary source auto-selected."
     },
     {
       "name": "search_indicators",
