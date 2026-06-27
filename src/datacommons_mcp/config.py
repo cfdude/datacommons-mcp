@@ -89,18 +89,50 @@ class AppConfig(BaseSettings):
         le=10000,
     )
     max_places: int = Field(
-        default=5000,
+        default=150000,
         alias="DC_MAX_PLACES",
         description=(
-            "Max child places a single get_observations query may span before it is "
-            "refused. The whole result is materialized in server memory before writing; "
-            "facet auto-reduction (item A-i) cut that ~10x, so county-scale exports are "
-            "permitted. Counts all child places of the type, not only those with data. "
-            "NOTE: unreduced wide date-range child queries stay memory-heavy at this "
-            "scale until place-sharding lands."
+            "Absolute ceiling on the child places a single get_observations query may "
+            "span. Queries above DC_SHARD_SIZE are SHARDED (place-sharding, item A-ii), "
+            "not refused; only queries above this ceiling are refused (a wall-clock safety "
+            "bound). Default admits all-US-census-tracts (~97,659) with headroom."
         ),
         ge=1,
-        le=100000,
+        le=1000000,
+    )
+    shard_size: int = Field(
+        default=15000,
+        alias="DC_SHARD_SIZE",
+        description=(
+            "Max child places per shard / per non-sharded single fetch. A child query "
+            "with more places than this is exported by sharding into batches of this size "
+            "(each ~one shard's bounded memory). Conservative margin under the API's "
+            "(variable-dependent) request-size wall."
+        ),
+        ge=1,
+        le=1000000,
+    )
+    shard_min: int = Field(
+        default=1000,
+        alias="DC_SHARD_MIN",
+        description=(
+            "Floor shard size for adaptive retry: when a shard fetch hits the API's size "
+            "wall (HTTP 500/502) it is halved and retried down to this floor; a floor "
+            "shard that still fails errors out."
+        ),
+        ge=1,
+        le=1000000,
+    )
+    shard_facet_min_coverage: float = Field(
+        default=0.8,
+        alias="DC_SHARD_FACET_MIN_COVERAGE",
+        description=(
+            "Coverage threshold for the shared primary facet: if it returns data for fewer "
+            "than this fraction of a shard's requested places, the shortfall is counted into "
+            "ObservationsFileResult.places_missing and surfaced to the caller."
+        ),
+        ge=0.0,
+        le=1.0,
     )
     include_lineage: bool = Field(
         default=True,
@@ -124,6 +156,16 @@ class AppConfig(BaseSettings):
         if isinstance(v, str):
             return str(Path(v).expanduser().resolve())
         raise ValueError(f"Invalid storage_directory type: {type(v)}")
+
+    @model_validator(mode="after")
+    def _check_shard_thresholds(self) -> AppConfig:
+        """Keep the sharding knobs coherent: shard_min <= shard_size <= max_places."""
+        if not (self.shard_min <= self.shard_size <= self.max_places):
+            raise ValueError(
+                "DC_SHARD_MIN <= DC_SHARD_SIZE <= DC_MAX_PLACES required, got "
+                f"{self.shard_min} <= {self.shard_size} <= {self.max_places}"
+            )
+        return self
 
 
 def load_config() -> AppConfig:

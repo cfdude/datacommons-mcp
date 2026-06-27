@@ -1288,7 +1288,20 @@ class TestFacetReduction:
         )
         assert mock_client.fetch_obs_page.await_count == 1  # no probe
 
-    def test_max_places_default_is_5000(self):
+    def test_place_budget_and_shard_defaults(self):
         from datacommons_mcp.config import AppConfig
 
-        assert AppConfig.model_fields["max_places"].default == 5000
+        # A-ii raised the ceiling (now a shard trigger) and added shard knobs.
+        assert AppConfig.model_fields["max_places"].default == 150000
+        assert AppConfig.model_fields["shard_size"].default == 15000
+        assert AppConfig.model_fields["shard_min"].default == 1000
+        assert AppConfig.model_fields["shard_facet_min_coverage"].default == 0.8
+
+    def test_shard_threshold_validator(self):
+        import pytest as _pytest
+
+        from datacommons_mcp.config import AppConfig
+
+        # shard_min <= shard_size <= max_places must hold.
+        with _pytest.raises(ValueError, match="DC_SHARD_MIN <= DC_SHARD_SIZE <= DC_MAX_PLACES"):
+            AppConfig(dc_api_key="k", shard_size=200000, max_places=150000)

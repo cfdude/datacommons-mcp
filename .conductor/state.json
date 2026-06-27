@@ -1,20 +1,10 @@
 {
   "version": 1,
-  "active": "observations-facet-reduction",
+  "active": "observations-place-sharding",
   "epics": [
     {
       "id": "observations-place-sharding",
       "title": "Place-sharding for beyond-cap big exports (fetch_observations_by_entity_dcid in batches; A-ii)",
-      "priority": "P2",
-      "status": "queued",
-      "role": "epic",
-      "lane": "openspec",
-      "links": [],
-      "reconcileNeeded": false
-    },
-    {
-      "id": "observations-facet-reduction",
-      "title": "observations-facet-reduction",
       "priority": "P1",
       "status": "active",
       "role": "epic",
