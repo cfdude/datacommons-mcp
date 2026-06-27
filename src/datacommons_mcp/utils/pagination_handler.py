@@ -18,7 +18,7 @@ Coordinates paginated API fetches and streams data directly to CSV files
 for large datasets, avoiding memory accumulation.
 """
 
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -178,15 +178,42 @@ class PaginationHandler:
         progress_callback: ProgressCallback | None = None,
         server_version: str | None = None,
     ) -> PaginationResult:
-        """Stream paginated observations to a CSV file."""
-        # Generate filename
-        variable_id = request.variable_dcid
-        filename = self.path_resolver.generate_timestamped_filename(
-            prefix="observations",
-            variable_id=variable_id,
-            extension="csv",
+        """Stream a single processed response to a CSV file.
+
+        The v2 API never paginates (``first_next_token`` is always None), so this writes
+        exactly one page. Multi-page writing goes through ``stream_pages_to_file`` (used by
+        place-sharding to write many shards into one file).
+        """
+
+        async def _single_page() -> AsyncIterator[ObservationToolResponse]:
+            yield first_response
+
+        return await self.stream_pages_to_file(
+            request,
+            _single_page(),
+            progress_callback=progress_callback,
+            server_version=server_version,
         )
 
+    async def stream_pages_to_file(
+        self,
+        request: ObservationRequest,
+        pages: AsyncIterator[ObservationToolResponse],
+        *,
+        progress_callback: ProgressCallback | None = None,
+        server_version: str | None = None,
+    ) -> PaginationResult:
+        """Write an async stream of processed responses to ONE CSV file.
+
+        Opens the ``CSVStreamer`` once and appends each page in turn (one per shard, in
+        the sharded case). The caller yields and releases pages sequentially, so peak
+        memory is O(one page). Returns the aggregate ``PaginationResult``.
+        """
+        filename = self.path_resolver.generate_timestamped_filename(
+            prefix="observations",
+            variable_id=request.variable_dcid,
+            extension="csv",
+        )
         file_path = self.path_resolver.resolve(filename, FileCategory.OBSERVATIONS)
 
         def on_stream_progress(stats: StreamStats) -> None:
@@ -198,7 +225,6 @@ class PaginationHandler:
             include_lineage=self.include_lineage,
             progress_callback=on_stream_progress,
         ) as streamer:
-            # Set lineage metadata
             streamer.set_lineage_metadata(
                 server_version=server_version,
                 variable_dcid=request.variable_dcid,
@@ -208,94 +234,18 @@ class PaginationHandler:
                 timestamp=datetime.now().isoformat(),
             )
 
-            # Write first page
-            streamer.write_response_page(first_response, page_number=1)
-            pages_fetched = 1
+            pages_written = 0
+            async for page in pages:
+                pages_written += 1
+                streamer.write_response_page(page, page_number=pages_written)
 
-            # Fetch remaining pages
-            next_token = first_next_token
-            while next_token and pages_fetched < self.max_pages:
-                api_response, next_token = await self.client.fetch_obs_page(
-                    request, page_token=next_token
-                )
-
-                # Process the API response into a tool response
-                # Note: This is a simplified version - the full processing
-                # would need to go through services.py logic
-                pages_fetched += 1
-
-                # For now, we'll write the raw observations
-                # In the full implementation, this would use the
-                # processed response from services.py
-                self._write_api_response_page(streamer, api_response, first_response, pages_fetched)
-
-            # Get final stats
             stats = streamer.stats
 
         return PaginationResult(
             output_mode=OutputMode.FILE,
             file_path=file_path,
             rows_written=stats.rows_written,
-            pages_fetched=pages_fetched,
+            pages_fetched=pages_written,
             file_size_bytes=stats.bytes_written,
             unique_places=stats.unique_places,
         )
-
-    def _write_api_response_page(
-        self,
-        streamer: CSVStreamer,
-        api_response: Any,
-        template_response: ObservationToolResponse,
-        page_number: int,
-    ) -> None:
-        """
-        Write a raw API response page to the streamer.
-
-        This method bridges between the raw API response format and the
-        tool response format used by the CSVStreamer.
-
-        Args:
-            streamer: The CSVStreamer to write to.
-            api_response: Raw API response from fetch_obs_page.
-            template_response: Template with variable/source info from first page.
-            page_number: The current page number.
-        """
-        # The api_response contains raw observation data
-        # We need to convert it to the format expected by CSVStreamer
-
-        # Use the template response's variable and source info
-        variable_dcid = template_response.variable.dcid or ""
-        variable_name = template_response.variable.name
-        source_id = (
-            template_response.source_metadata.source_id
-            if template_response.source_metadata
-            else None
-        )
-
-        from datacommons_mcp.utils.csv_streamer import CSVRow
-
-        # Extract observations from API response
-        # The exact structure depends on the datacommons_client library
-        if hasattr(api_response, "by_entity"):
-            for entity_dcid, entity_data in api_response.by_entity.items():
-                # Get place name if available
-                place_name = None
-                place_type = None
-
-                # Process observations for this entity
-                if hasattr(entity_data, "ordered_facets"):
-                    for facet in entity_data.ordered_facets:
-                        if hasattr(facet, "observations"):
-                            for obs in facet.observations:
-                                streamer.write_row(
-                                    CSVRow(
-                                        place_dcid=entity_dcid,
-                                        place_name=place_name,
-                                        place_type=place_type,
-                                        variable_dcid=variable_dcid,
-                                        variable_name=variable_name,
-                                        date=obs.date if hasattr(obs, "date") else "",
-                                        value=obs.value if hasattr(obs, "value") else 0.0,
-                                        source_id=source_id,
-                                    )
-                                )

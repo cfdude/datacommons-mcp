@@ -1363,3 +1363,20 @@ async def test_count_child_places(mocked_datacommons_client):
     mocked_datacommons_client.node.fetch_place_children.assert_called_once_with(
         place_dcids="country/USA", children_type="State", as_dict=True
     )
+
+
+@pytest.mark.asyncio
+async def test_fetch_child_place_dcids_extracts_dcids(mocked_datacommons_client):
+    """fetch_child_place_dcids returns the DCID list from as_dict items (for sharding)."""
+    client = DCClient(dc=mocked_datacommons_client)
+    mocked_datacommons_client.node = Mock()
+    mocked_datacommons_client.node.fetch_place_children = Mock(
+        return_value={
+            "country/USA": [
+                {"dcid": "geoId/06", "name": "California"},
+                {"dcid": "geoId/48", "name": "Texas"},
+            ]
+        }
+    )
+
+    assert await client.fetch_child_place_dcids("country/USA", "State") == ["geoId/06", "geoId/48"]

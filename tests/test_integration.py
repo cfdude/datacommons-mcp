@@ -146,16 +146,19 @@ class TestOutputHandlerIntegration:
         assert result.pages_fetched is not None
         assert Path(result.file_path).exists()
 
-    def test_auto_mode_with_pagination_streams_to_file(
+    def test_auto_mode_with_next_token_streams_to_file(
         self, mock_client, sample_request, sample_response, temp_dir
     ):
-        """Auto mode with next_token should stream to file."""
-        import asyncio
+        """Auto mode with a next_token routes to file.
 
-        # Mock second page response with no next_token (end of pagination)
-        mock_response = MagicMock()
-        mock_response.byVariable = {}
-        mock_client.fetch_obs_page.return_value = (mock_response, None)
+        The v2 API never actually paginates (next_token is always None in production),
+        so the materialized first response is written and NO further page is fetched —
+        the previous multi-page loop was dead code and has been removed.
+        """
+        import asyncio
+        from unittest.mock import AsyncMock
+
+        mock_client.fetch_obs_page = AsyncMock()  # must NOT be called
 
         config = OutputHandlerConfig(storage_dir=temp_dir)
         handler = OutputHandler(mock_client, config)
@@ -164,7 +167,7 @@ class TestOutputHandlerIntegration:
             handler.handle_observations(
                 request=sample_request,
                 processed_response=sample_response,
-                next_token="token123",  # Has more pages
+                next_token="token123",
                 output_mode="auto",
             )
         )
@@ -172,8 +175,7 @@ class TestOutputHandlerIntegration:
         assert result.output_mode == "file"
         assert result.file_path is not None
         assert Path(result.file_path).exists()
-        # Should have fetched the second page
-        mock_client.fetch_obs_page.assert_called()
+        mock_client.fetch_obs_page.assert_not_called()  # no dead pagination loop
 
     def test_csv_includes_lineage_headers(
         self, mock_client, sample_request, sample_response, temp_dir

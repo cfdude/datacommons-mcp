@@ -425,6 +425,12 @@ class ObservationsFileResult(ToolResponseBaseModel):
         description="Human-readable summary: total rows written, the file path, and that a "
         "sample is shown.",
     )
+    places_missing: int = Field(
+        default=0,
+        description="Sharded exports only: count of requested places the chosen primary "
+        "source did not cover (data may be incomplete for regionally-sourced variables). "
+        "0 for non-sharded exports and when coverage is complete.",
+    )
 
 
 # Tagged union (keyed on the `output_mode` literal) of the two get_observations outcomes.

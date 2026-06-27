@@ -105,23 +105,32 @@ companion metadata files alongside the main export.
 | `DC_STORAGE_DIR` | `~/Documents/datacommons-data` | Directory where exported files are written. |
 | `DC_OUTPUT_FORMAT` | `csv` | Export format: `csv` or `json`. |
 | `DC_SCREEN_ROW_THRESHOLD` | `500` | Max rows returned inline; larger responses export to a file. |
-| `DC_MAX_PLACES` | `5000` | Max child places a single `get_observations` query may span before it is refused (see below). |
+| `DC_MAX_PLACES` | `150000` | Absolute ceiling on child places per query; above it the query is refused (see below). |
+| `DC_SHARD_SIZE` | `15000` | Child-place queries larger than this are exported by sharding into batches of this size. |
 | `DC_MAX_PAGES` | `100` | Max API pages fetched per paginated request. |
 | `DC_INCLUDE_LINEAGE` | `true` | Include data-lineage headers in CSV exports. |
 | `DC_MULTI_FILE_EXPORT` | `false` | Write companion metadata files alongside exports. |
 | `DC_TYPE` | `base` | `base` (datacommons.org) or `custom` (a Custom Data Commons instance). |
 
-> **Very large queries & source auto-selection.** `get_observations` builds the full result in
-> server memory before writing (the Data Commons API does not stream/paginate). To keep that
-> bounded, a large child-place export (`child_place_type` + `date="all"`, no explicit source)
-> **auto-selects the primary source** and asks the API for only that facet — cutting peak memory
-> ~10× (e.g. *all US counties × all years* drops from ~1 GB to ~150 MB), with the same result.
-> One caveat: when two sources tie on place coverage, the auto-pick may differ from a full-data
-> ranking (it can't see total observation counts cheaply); pass an explicit source for exact
-> control. As a further safeguard, a `child_place_type` query spanning more than `DC_MAX_PLACES`
-> places is **refused** with guidance to narrow it. Raise `DC_MAX_PLACES` on a high-memory
-> machine, or lower it to be cautious. (Unreduced **wide date-range** child queries over many
-> places stay memory-heavy until place-sharding lands.)
+> **Very large queries — source auto-selection & sharding.** The Data Commons API does not
+> stream or paginate and rejects oversized requests, so `get_observations` handles big
+> child-place exports in two layers:
+>
+> 1. **Facet auto-selection** — a large child-place export (`child_place_type` + `date="all"`,
+>    no explicit source) **auto-selects the primary source** and asks the API for only that
+>    facet, cutting peak memory ~10× (e.g. *all US counties × all years* drops from ~1 GB to
+>    ~150 MB), with the same result. *Caveat:* when two sources tie on place coverage the
+>    auto-pick may differ from a full-data ranking (it can't see total observation counts
+>    cheaply); pass an explicit source for exact control.
+> 2. **Place-sharding** — a query spanning more than `DC_SHARD_SIZE` places (e.g. *all US census
+>    tracts*, ~97k) is exported by **sharding the place list into batches**, querying each batch
+>    and writing it to one CSV in bounded (≈ one-shard) memory. Failed batches (the API's size
+>    walls) are split and retried automatically. The largest exports take a few minutes of
+>    wall-clock. Only queries above the absolute `DC_MAX_PLACES` ceiling are refused.
+>
+> For sharded exports a single primary source is chosen and reused across all batches; if it
+> doesn't cover some places (possible for regionally-sourced variables) the result's
+> `places_missing` reports how many — pass an explicit `source_override` for full control.
 
 ### Custom Data Commons
 

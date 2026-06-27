@@ -15,6 +15,7 @@
 
 from datacommons_mcp.data_models.observations import (
     ObservationApiResponse,
+    ObservationDateType,
     ObservationRequest,
 )
 
@@ -96,6 +97,26 @@ class _ObservationsMixin:
         next_token = self._extract_next_token(response)
 
         return response, next_token
+
+    async def fetch_observations_by_entity_dcid(
+        self,
+        variable_dcid: str,
+        entity_dcids: list[str],
+        date: ObservationDateType | str,
+        filter_facet_ids: list[str] | None = None,
+    ) -> ObservationApiResponse:
+        """Fetch observations for an explicit list of entity DCIDs (a shard).
+
+        Uses the POST-body ``entity_dcids`` path (no URL-length limit — carries tens of
+        thousands of DCIDs) and composes with ``filter_facet_ids`` for facet reduction.
+        Used by place-sharding to query batches of child places.
+        """
+        return self.dc.observation.fetch_observations_by_entity_dcid(
+            variable_dcids=variable_dcid,
+            entity_dcids=entity_dcids,
+            date=date,
+            filter_facet_ids=filter_facet_ids,
+        )
 
     def _extract_next_token(self, response: ObservationApiResponse) -> str | None:
         """

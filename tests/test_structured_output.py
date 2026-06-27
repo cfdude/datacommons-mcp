@@ -79,7 +79,6 @@ async def test_search_indicators_structured_content_matches_model(monkeypatch, _
 async def test_get_observations_screen_structured_content(monkeypatch, _dc_env):
     from fastmcp import Client
 
-    import datacommons_mcp.tools.observations as obs_mod
     from datacommons_mcp.fastmcp_server import mcp
 
     response = ObservationToolResponse(
@@ -92,7 +91,9 @@ async def test_get_observations_screen_structured_content(monkeypatch, _dc_env):
     async def _fake_obs(*args, **kwargs):
         return response, request, None  # (response, request, next_token=None)
 
-    monkeypatch.setattr(obs_mod, "get_observations_service", _fake_obs)
+    monkeypatch.setattr(
+        "datacommons_mcp.services.observations.get_observations_paginated", _fake_obs
+    )
 
     async with Client(mcp) as client:
         result = await client.call_tool(
@@ -114,7 +115,6 @@ async def test_get_observations_file_structured_content_has_preview(monkeypatch,
     """File-mode result carries the bounded preview + summary metadata in structured output."""
     from fastmcp import Client
 
-    import datacommons_mcp.tools.observations as obs_mod
     from datacommons_mcp.fastmcp_server import mcp
 
     # Write exports to a temp dir, not the user's ~/Documents.
@@ -135,7 +135,9 @@ async def test_get_observations_file_structured_content_has_preview(monkeypatch,
     async def _fake_obs(*args, **kwargs):
         return response, request, None
 
-    monkeypatch.setattr(obs_mod, "get_observations_service", _fake_obs)
+    monkeypatch.setattr(
+        "datacommons_mcp.services.observations.get_observations_paginated", _fake_obs
+    )
 
     async with Client(mcp) as client:
         result = await client.call_tool(

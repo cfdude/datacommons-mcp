@@ -18,6 +18,7 @@ Provides a high-level interface for handling observation responses with
 automatic mode detection based on pagination.
 """
 
+from collections.abc import AsyncIterator
 from dataclasses import asdict, dataclass
 from enum import Enum
 from itertools import islice
@@ -35,6 +36,7 @@ from datacommons_mcp.data_models.observations import (
 from datacommons_mcp.utils.csv_streamer import CSVStreamer, flatten_response_to_rows
 from datacommons_mcp.utils.pagination_handler import (
     PaginationHandler,
+    PaginationResult,
 )
 from datacommons_mcp.utils.path_resolver import PathResolver
 from datacommons_mcp.version import __version__
@@ -236,28 +238,51 @@ class OutputHandler:
             server_version=__version__,
         )
 
-        # Build the typed file result from the PaginationResult.
-        # (PaginationResult.to_dict() is retained for its own callers/tests.)
+        # Bounded preview from the already-materialized response so the agent can see
+        # the content without opening the file.
+        preview = [
+            ObservationPreviewRow(**asdict(row))
+            for row in islice(flatten_response_to_rows(processed_response), _PREVIEW_ROWS)
+        ]
+        return self._finalize_file_result(
+            result,
+            preview_rows=preview,
+            variable_name=processed_response.variable.name,
+            output_format=output_format,
+            multi_file=multi_file,
+        )
+
+    def _finalize_file_result(
+        self,
+        result: PaginationResult,
+        *,
+        preview_rows: list[ObservationPreviewRow],
+        variable_name: str | None,
+        output_format: Literal["csv", "json"],
+        multi_file: bool,
+        places_missing: int = 0,
+    ) -> ObservationsFileResult:
+        """Build the typed ObservationsFileResult from a PaginationResult + preview rows.
+
+        Shared by the single-fetch file path and the sharded path so the result shape
+        (preview/summary/columns/...) cannot drift between them.
+        """
         companion_files = (
             {k: str(v) for k, v in result.companion_files.items()}
             if result.companion_files
             else None
         )
         file_path = str(result.file_path) if result.file_path else None
-
-        # Bounded preview from the already-materialized response so the agent can see
-        # the content without opening the file. This is page-1-only: it is faithful while
-        # the DC client returns the whole dataset at once (see design note); a future
-        # real-streaming change must revisit the preview source.
-        preview = [
-            ObservationPreviewRow(**asdict(row))
-            for row in islice(flatten_response_to_rows(processed_response), _PREVIEW_ROWS)
-        ]
         summary = (
             f"{result.rows_written} rows written to {file_path} ({output_format}). "
-            f"Showing the first {len(preview)} of {result.rows_written} row(s); "
+            f"Showing the first {len(preview_rows)} of {result.rows_written} row(s); "
             f"open the file for the full dataset."
         )
+        if places_missing:
+            summary += (
+                f" NOTE: {places_missing} requested place(s) had no data from the chosen "
+                "primary source — coverage may be incomplete for this variable."
+            )
 
         return ObservationsFileResult(
             output_mode="file",
@@ -270,8 +295,54 @@ class OutputHandler:
             companion_files=companion_files,
             # Present (True) only when multi-file export was requested.
             multi_file=True if multi_file else None,
-            variable_name=processed_response.variable.name,
+            variable_name=variable_name,
             columns=list(CSVStreamer.HEADERS),
-            preview=preview,
+            preview=preview_rows,
             summary=summary,
+            places_missing=places_missing,
+        )
+
+    async def stream_pages_to_file(
+        self,
+        request: ObservationRequest,
+        pages: AsyncIterator[ObservationToolResponse],
+        *,
+        progress_callback: Any | None = None,
+    ) -> PaginationResult:
+        """Stream an async sequence of response pages to one CSV (used by place-sharding).
+
+        Thin pass-through to the pagination handler so the sharded driver doesn't reach
+        into internals; the driver then calls ``finalize_file_result`` with the captured
+        preview/coverage. The single-fetch path and this share the same writer + result
+        construction (no drift).
+        """
+
+        def pagination_progress(page: int, rows: int, total_bytes: int) -> None:
+            if progress_callback:
+                progress_callback(page, rows, total_bytes)
+
+        return await self.pagination_handler.stream_pages_to_file(
+            request,
+            pages,
+            progress_callback=pagination_progress,
+            server_version=__version__,
+        )
+
+    def finalize_file_result(
+        self,
+        result: PaginationResult,
+        *,
+        preview_rows: list[ObservationPreviewRow],
+        variable_name: str | None,
+        output_format: Literal["csv", "json"],
+        places_missing: int = 0,
+    ) -> ObservationsFileResult:
+        """Public entry for the sharded driver to build the result (multi_file off)."""
+        return self._finalize_file_result(
+            result,
+            preview_rows=preview_rows,
+            variable_name=variable_name,
+            output_format=output_format,
+            multi_file=False,
+            places_missing=places_missing,
         )
