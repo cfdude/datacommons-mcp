@@ -1,18 +1,7 @@
 {
   "version": 1,
-  "active": "observations-place-sharding",
-  "epics": [
-    {
-      "id": "observations-place-sharding",
-      "title": "Place-sharding for beyond-cap big exports (fetch_observations_by_entity_dcid in batches; A-ii)",
-      "priority": "P1",
-      "status": "active",
-      "role": "epic",
-      "lane": "openspec",
-      "links": [],
-      "reconcileNeeded": false
-    }
-  ],
+  "active": null,
+  "epics": [],
   "detourStack": [],
   "pmVersion": "0.5.0"
 }
