@@ -789,11 +789,23 @@ async def _sharded_export(
     else:
         stride = max(1, len(dcids) // shard_size)
         sample = dcids[::stride][:shard_size]
-        probe = await client.fetch_observations_by_entity_dcid(
-            variable_dcid, sample, ObservationDateType.LATEST, None
-        )
+        try:
+            probe = await client.fetch_observations_by_entity_dcid(
+                variable_dcid, sample, ObservationDateType.LATEST, None
+            )
+        except DCStatusError as exc:
+            # The probe is date=latest (light), but a huge sample could still hit the wall.
+            if getattr(exc, "status_code", None) in _SHARD_SIZE_ERROR_STATUS:
+                raise ResultTooLargeError(
+                    f"The facet-selection probe for {variable_dcid} ({len(sample)} places) hit the "
+                    f"API size limit. Lower DC_SHARD_SIZE or pass an explicit source."
+                ) from exc
+            raise
         primary, _ = rank_primary_facet(probe.byVariable.get(variable_dcid, ByVariable({})), None)
 
+    # If no facet ranked (no data in the sample), primary stays None and shards fetch
+    # unfiltered (all facets) — heavier per shard, but still bounded by adaptive halving;
+    # the coverage guard is skipped in that degenerate case.
     shard_request = request.model_copy(update={"source_ids": [primary] if primary else None})
     shards = [dcids[i : i + shard_size] for i in range(0, len(dcids), shard_size)]
     # Captured during streaming, read after it completes.
@@ -808,9 +820,12 @@ async def _sharded_export(
                 [primary] if primary else None,
             )
         except DCStatusError as exc:
-            if getattr(exc, "status_code", None) in _SHARD_SIZE_ERROR_STATUS and (
-                len(shard) > shard_min
-            ):
+            # Only the API's size walls (HTTP 500 series cap / 502 timeout) are retryable by
+            # halving. Auth (401/403), not-found (404), rate-limit (429), etc. are NOT size
+            # errors — propagate them unchanged rather than mislabel them as "too large".
+            if getattr(exc, "status_code", None) not in _SHARD_SIZE_ERROR_STATUS:
+                raise
+            if len(shard) > shard_min:
                 mid = len(shard) // 2
                 async for page in _export_shard(shard[:mid]):
                     yield page

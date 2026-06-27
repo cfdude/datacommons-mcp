@@ -1416,6 +1416,22 @@ class TestPlaceSharding:
             await self._export(client, tmp_path, shard_size=8, shard_min=8)
 
     @pytest.mark.asyncio
+    async def test_non_size_error_propagates_unchanged(self, tmp_path):
+        """A non-size DCStatusError (e.g. 401/429) is NOT mislabeled as 'too large'/retried."""
+        from datacommons_client.utils.error_handling import DCStatusError
+
+        dcids = [f"geoId/{i}" for i in range(20)]
+
+        async def _fetch(variable_dcid, entity_dcids, date, filter_facet_ids):
+            if filter_facet_ids:  # a shard fetch fails with an auth error, not a size error
+                raise _size_error(401)
+            return _obs_response({d: {"s1": [("2020", 1.0)]} for d in entity_dcids}, {"s1": {}})
+
+        client = self._client(dcids, _fetch)
+        with pytest.raises(DCStatusError):  # propagated as-is, NOT wrapped in ResultTooLargeError
+            await self._export(client, tmp_path, shard_size=10)
+
+    @pytest.mark.asyncio
     async def test_coverage_guard_counts_places_missing(self, tmp_path):
         dcids = [f"geoId/{i:05d}" for i in range(20)]  # 20 > shard_size 10 -> 2 shards
 
