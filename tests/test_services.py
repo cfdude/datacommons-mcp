@@ -38,6 +38,7 @@ from datacommons_mcp.exceptions import (
 )
 from datacommons_mcp.services import (
     get_observations,
+    get_observations_export,
     get_observations_paginated,
     search_indicators,
 )
@@ -45,6 +46,7 @@ from datacommons_mcp.services.observations import (
     _validate_and_build_request,
     rank_primary_facet,
 )
+from datacommons_mcp.utils.output_handler import OutputHandler, OutputHandlerConfig
 
 
 @pytest.mark.asyncio
@@ -1305,3 +1307,144 @@ class TestFacetReduction:
         # shard_min <= shard_size <= max_places must hold.
         with _pytest.raises(ValueError, match="DC_SHARD_MIN <= DC_SHARD_SIZE <= DC_MAX_PLACES"):
             AppConfig(dc_api_key="k", shard_size=200000, max_places=150000)
+
+
+def _size_error(status: int = 502):
+    """Build a DCStatusError mimicking the API's HTTP 500/502 size-wall responses."""
+    from datacommons_client.utils.error_handling import DCStatusError
+
+    return DCStatusError(Mock(status_code=status))
+
+
+class TestPlaceSharding:
+    """Item A-ii: shard large child-place exports into batches written to one CSV."""
+
+    def _client(self, dcids, fetch_impl):
+        c = Mock(spec_set=DCClient)
+        c.fetch_child_place_dcids = AsyncMock(return_value=dcids)
+        c.fetch_observations_by_entity_dcid = AsyncMock(side_effect=fetch_impl)
+        c.fetch_entity_names = AsyncMock(return_value={})
+        c.fetch_entity_types = AsyncMock(return_value={})
+        return c
+
+    async def _export(self, client, tmp_path, **overrides):
+        from pathlib import Path  # noqa: F401 (kept local; assertions import as needed)
+
+        handler = OutputHandler(client, OutputHandlerConfig(storage_dir=tmp_path))
+        params = {
+            "variable_dcid": "Count_Person",
+            "place_dcid": "country/USA",
+            "child_place_type": "County",
+            "date": "all",
+            "output_mode": "file",
+            "output_format": "csv",
+            "multi_file": False,
+            "max_places": 150000,
+            "shard_size": 10,
+            "shard_min": 2,
+            "facet_min_coverage": 0.8,
+        }
+        params.update(overrides)
+        return await get_observations_export(client, handler, **params)
+
+    @pytest.mark.asyncio
+    async def test_sharded_export_writes_all_shards(self, tmp_path):
+        from pathlib import Path
+
+        dcids = [f"geoId/{i:05d}" for i in range(25)]  # 25 > shard_size 10 -> 3 shards
+
+        async def _fetch(variable_dcid, entity_dcids, date, filter_facet_ids):
+            return _obs_response(
+                {d: {"s1": [("2020", 1.0)]} for d in entity_dcids}, {"s1": {"importName": "S1"}}
+            )
+
+        client = self._client(dcids, _fetch)
+        result = await self._export(client, tmp_path)
+
+        assert result.output_mode == "file"
+        assert Path(result.file_path).exists()
+        assert result.rows_written == 25  # 25 places x 1 obs each
+        assert result.pages_fetched == 3  # 3 shards written into one CSV
+        assert result.places_missing == 0
+        client.fetch_child_place_dcids.assert_awaited_once()  # enumerated exactly once (I2)
+
+    @pytest.mark.asyncio
+    async def test_refuses_over_max_places(self, tmp_path):
+        client = self._client(["x"] * 200, AsyncMock())
+        with pytest.raises(ResultTooLargeError, match="DC_MAX_PLACES=150"):
+            await self._export(client, tmp_path, max_places=150)
+
+    @pytest.mark.asyncio
+    async def test_under_shard_size_uses_single_path(self, tmp_path, monkeypatch):
+        client = self._client(["x"] * 5, AsyncMock())  # 5 <= shard_size 10 -> not sharded
+
+        async def _sentinel(*a, **k):
+            raise RuntimeError("single path reached")
+
+        monkeypatch.setattr(
+            "datacommons_mcp.services.observations.get_observations_paginated", _sentinel
+        )
+        with pytest.raises(RuntimeError, match="single path reached"):
+            await self._export(client, tmp_path)
+        client.fetch_observations_by_entity_dcid.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_adaptive_halving_recovers(self, tmp_path):
+        dcids = [f"geoId/{i}" for i in range(10)]  # 10 > shard_size 8 -> shards [8, 2]
+
+        async def _fetch(variable_dcid, entity_dcids, date, filter_facet_ids):
+            # The latest probe (no filter) always succeeds; a filtered shard fails when >4.
+            if filter_facet_ids and len(entity_dcids) > 4:
+                raise _size_error(502)
+            return _obs_response({d: {"s1": [("2020", 1.0)]} for d in entity_dcids}, {"s1": {}})
+
+        client = self._client(dcids, _fetch)
+        result = await self._export(client, tmp_path, shard_size=8, shard_min=2)
+        assert result.rows_written == 10  # 8-shard failed -> halved 4+4 -> all 10 written
+
+    @pytest.mark.asyncio
+    async def test_floor_shard_failure_errors(self, tmp_path):
+        dcids = [f"geoId/{i}" for i in range(10)]
+
+        async def _fetch(variable_dcid, entity_dcids, date, filter_facet_ids):
+            if filter_facet_ids:  # every filtered shard fails, even at the floor
+                raise _size_error(500)
+            return _obs_response({d: {"s1": [("2020", 1.0)]} for d in entity_dcids}, {"s1": {}})
+
+        client = self._client(dcids, _fetch)
+        with pytest.raises(ResultTooLargeError, match="DC_SHARD_MIN"):
+            await self._export(client, tmp_path, shard_size=8, shard_min=8)
+
+    @pytest.mark.asyncio
+    async def test_coverage_guard_counts_places_missing(self, tmp_path):
+        dcids = [f"geoId/{i:05d}" for i in range(20)]  # 20 > shard_size 10 -> 2 shards
+
+        async def _fetch(variable_dcid, entity_dcids, date, filter_facet_ids):
+            # Filtered shards return only 7 of each 10 requested (3 lack the primary).
+            kept = entity_dcids[:7] if filter_facet_ids else entity_dcids
+            return _obs_response({d: {"s1": [("2020", 1.0)]} for d in kept}, {"s1": {}})
+
+        client = self._client(dcids, _fetch)
+        result = await self._export(client, tmp_path, shard_size=10, facet_min_coverage=0.8)
+        # 7/10 covered (< 0.8) per shard -> 3 missing each; 2 shards -> 6 (denominator = len(shard)).
+        assert result.places_missing == 6
+        assert "6" in result.summary
+
+    @pytest.mark.asyncio
+    async def test_one_facet_reused_across_shards(self, tmp_path):
+        dcids = [f"geoId/{i:05d}" for i in range(25)]
+        seen_filters = []
+
+        async def _fetch(variable_dcid, entity_dcids, date, filter_facet_ids):
+            seen_filters.append(filter_facet_ids)
+            if filter_facet_ids is None:  # the probe sees all facets
+                return _obs_response(
+                    {d: {"s1": [("2020", 1.0)], "s2": [("2019", 1.0)]} for d in entity_dcids},
+                    {"s1": {}, "s2": {}},
+                )
+            return _obs_response({d: {"s1": [("2020", 1.0)]} for d in entity_dcids}, {"s1": {}})
+
+        client = self._client(dcids, _fetch)
+        await self._export(client, tmp_path)
+        assert seen_filters[0] is None  # probe first (all facets)
+        assert all(f == ["s1"] for f in seen_filters[1:])  # every shard reuses the primary
