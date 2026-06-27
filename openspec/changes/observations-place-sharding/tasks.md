@@ -1,40 +1,46 @@
 ## 1. Client methods
 
-- [ ] 1.1 `clients/observations.py`: add `fetch_observations_by_entity_dcid(variable_dcid: str, entity_dcids: list[str], date, filter_facet_ids: list[str] | None) -> ObservationApiResponse` wrapping `self.dc.observation.fetch_observations_by_entity_dcid(...)` (POST body; verified to carry tens of thousands of DCIDs + compose with `filter_facet_ids`).
-- [ ] 1.2 `clients/entities.py`: add `fetch_child_place_dcids(parent_place_dcid, child_place_type) -> list[str]` (from `fetch_place_children(..., as_dict=True)` → `[d["dcid"] for d in resp.get(parent, [])]`). Refactor `count_child_places` to `len(fetch_child_place_dcids(...))` (or share the underlying call) so count and list cannot drift.
+- [ ] 1.1 `clients/observations.py`: `fetch_observations_by_entity_dcid(variable_dcid: str, entity_dcids: list[str], date, filter_facet_ids: list[str] | None) -> ObservationApiResponse` wrapping `self.dc.observation.fetch_observations_by_entity_dcid(...)` (POST body; carries tens of thousands of DCIDs + composes with `filter_facet_ids` — verified).
+- [ ] 1.2 `clients/entities.py`: `fetch_child_place_dcids(parent_place_dcid, child_place_type) -> list[str]` (`fetch_place_children(..., as_dict=True)` → `[d["dcid"] for d in resp.get(parent, [])]`). Refactor `count_child_places` to reuse it so count and list can't drift.
 
-## 2. Config
+## 2. Config (Gate-1 C1 / M4)
 
-- [ ] 2.1 `config.py`: add `shard_size` (alias `DC_SHARD_SIZE`, default 15000, ge≥1), `shard_min` (alias `DC_SHARD_MIN`, default 1000), `shard_facet_min_coverage` (alias `DC_SHARD_FACET_MIN_COVERAGE`, default 0.8, 0–1). Raise `max_places` default to ~150000 and update its description: now a SHARD TRIGGER up to an absolute ceiling, not a blanket refusal.
+- [ ] 2.1 `config.py`: add `shard_size` (`DC_SHARD_SIZE`, default 15000), `shard_min` (`DC_SHARD_MIN`, default 1000), `shard_facet_min_coverage` (`DC_SHARD_FACET_MIN_COVERAGE`, default 0.8, 0–1).
+- [ ] 2.2 `config.py`: `max_places` default 5000 → **150000** AND raise the field bound `le=100000 → 1000000` (C1: a 150000 default/ceiling is impossible under `le=100000`; all-US-tracts ≈ 97,659 must sit comfortably inside). Update the description: now a SHARD TRIGGER up to an absolute ceiling.
+- [ ] 2.3 Add a `model_validator` enforcing `shard_min ≤ shard_size ≤ max_places` (M4).
 
-## 3. Sharded export driver
+## 3. Generalize the file path to a page-producer (Gate-1 I1) — reuse, don't fork
 
-- [ ] 3.1 New `sharded_export(client, request, output_config, ...) -> ObservationsFileResult` (home TBD in Gate 1 — `services/` vs `utils/output_handler.py`). Steps below.
-- [ ] 3.2 Enumerate: `dcids = await client.fetch_child_place_dcids(request.place_dcid, request.child_place_type)`; `shards = [dcids[i:i+shard_size] for ...]`.
-- [ ] 3.3 Facet: if `request.source_ids` set, use it; else probe the FIRST shard at `date="latest"` (`fetch_observations_by_entity_dcid(shard0, filter_facet_ids=None, date=latest)`) → `rank_primary_facet` → `primary`. If no facet, fall back gracefully.
-- [ ] 3.4 Adaptive `fetch_shard(shard) -> ObservationApiResponse`: try `fetch_observations_by_entity_dcid(shard, filter_facet_ids=[primary], date=request.date_type)`; on the lib's HTTP-500 ("concurrent ... series") OR HTTP-502 error (confirm the real exception classes from `datacommons_client`), if `len(shard) > shard_min` split in half and recurse+concat; else re-raise with a clear message.
-- [ ] 3.5 Loop: open one `CSVStreamer`; for each shard `i`: `api_resp = await fetch_shard(shard)`; coverage guard — if the primary covers `< shard_facet_min_coverage` of the shard's returned places, `logger.warning(...)`; `metadata = await _fetch_all_metadata(client, var, api_resp, request.place_dcid)`; `resp = await _build_final_response(request_with_source_ids_primary, api_resp, metadata)`; `streamer.write_response_page(resp, page_number=i+1)`; accumulate `rows_written`; drop references. Close streamer.
-- [ ] 3.6 Return `ObservationsFileResult(file_path, rows_written=total, shards=len(shards), format, preview=<first shard rows>, summary=...)`. Decide `pages_fetched` (→ shard count) honestly.
+- [ ] 3.1 `utils/output_handler.py` / `pagination_handler.py`: generalize `_handle_file_output` (or `fetch_with_auto_streaming`) to consume an **async iterator of `ObservationToolResponse` pages**: open `CSVStreamer` once, `write_response_page` per page, build the `ObservationsFileResult` ONCE (preview from the first page). The normal path yields ONE page (today's behavior — must be unchanged); the sharded path yields N. Extract `_finalize_file_result(...)` if cleaner. CONFIRM every existing result field is preserved (preview/summary/columns/format/multi_file/companion_files/file_size_bytes/unique_places_count).
+- [ ] 3.2 `data_models/observations.py`: add `places_missing: int = 0` to `ObservationsFileResult` (I3 — coverage shortfall, agent-visible).
+- [ ] 3.3 Remove ONLY the dead `while next_token` loop (pagination_handler.py ~217-231) + `_write_api_response_page` (M1). KEEP `_stream_to_file` (it's the live single-page path). A test must prove a single-page (≤shard) file export still writes.
 
-## 4. Routing
+## 4. Sharded page-producer
 
-- [ ] 4.1 In the tool/service path for a `child_place_type` query: `n = count_child_places(...)`; `n > max_places` → `ResultTooLargeError` (absolute ceiling); `n > shard_size` → `sharded_export(...)` (force file, return its `ObservationsFileResult`); else the existing A-i path. Keep single-place / explicit-`source_override`-non-child / screen paths unchanged.
+- [ ] 4.1 Enumerate via `fetch_child_place_dcids`; `shards = [dcids[i:i+shard_size] ...]`.
+- [ ] 4.2 Facet: if `request.source_ids` set, use it; else probe a SPREAD sample (`dcids[::stride][:shard_size]`, not the first contiguous shard — geoId clustering, I3) at `date="latest"` (`fetch_observations_by_entity_dcid(sample, filter_facet_ids=None, date=latest)`) → `rank_primary_facet` → primary. No facet → graceful fallback.
+- [ ] 4.3 Adaptive `fetch_shard(shard)` yields processed pages: try `fetch_observations_by_entity_dcid(shard, [primary], request.date_type)`; on `DCStatusError` with `status_code in (500, 502)`, if `len(shard) > shard_min` split in half and recurse, **writing each LEAF as its own page (no concat)**; else re-raise a clear error naming variable+size. **Verify a 502 arrives as `DCStatusError`, not a raw `requests.Timeout` that escapes the lib catch (I4) — widen the catch if so.**
+- [ ] 4.4 Per shard: `_fetch_all_metadata(client, var, api_resp, request.place_dcid)`; `_build_final_response(request-with-source_ids=[primary], api_resp, metadata)` → small `ObservationToolResponse` → yield. Drop references (no accumulation across shards).
+- [ ] 4.5 Coverage guard: per shard, `covered = places with primary data returned`; if `covered / len(shard) < shard_facet_min_coverage`, accumulate `len(shard) - covered` into `places_missing`. Set it on the result + mention in `summary`. (Denominator is the REQUESTED shard — C2.)
+- [ ] 4.6 `multi_file` is NOT supported on sharded exports (M6) — ignore/assert off.
 
-## 5. Cleanup
+## 5. Routing — one service orchestrator (Gate-1 I2)
 
-- [ ] 5.1 Remove the dead `_stream_to_file` `next_token` loop and `_write_api_response_page` from `pagination_handler.py` (v2 never paginates). Keep the parts still used by the ≤shard-size file path; ensure that path still works.
+- [ ] 5.1 A single service entry for a `child_place_type` query enumerates ONCE (`fetch_child_place_dcids`, `n = len`) and dispatches: `n > max_places` → `ResultTooLargeError`; `n > shard_size` → sharded page-producer (force file); else → existing A-i single fetch. Thread the count/DCID list down — do NOT count in the tool then re-enumerate in the driver. `get_observations_paginated` keeps its own guardrail for direct/test callers. `pages_fetched` = number of shard fetches (M7), pinned by a test.
 
 ## 6. Tests
 
 - [ ] 6.1 `fetch_child_place_dcids` returns the DCID list; `count_child_places` consistent (mock `fetch_place_children`).
-- [ ] 6.2 Routing: `count ≤ shard_size` → A-i path (no sharding); `shard_size < count ≤ max_places` → sharded_export called; `count > max_places` → `ResultTooLargeError`.
-- [ ] 6.3 Shard loop: mock the client so a 3-shard export writes all 3 (assert `write_response_page` called 3×, `rows_written` summed, one `CSVStreamer` opened/closed).
-- [ ] 6.4 Adaptive halving: a `fetch_shard` that raises the size error for a big shard but succeeds for halves → assert it splits and completes; a floor-size shard that still fails → clear error.
-- [ ] 6.5 Facet: probe runs on shard 0 only; the same `filter_facet_ids=[primary]` is passed to every shard fetch. Coverage guard logs a warning when a shard's coverage is below the threshold.
-- [ ] 6.6 `DC_SHARD_SIZE`/`DC_MAX_PLACES` defaults; existing A-i + C tests still pass.
+- [ ] 6.2 Routing: `n ≤ shard_size` → A-i (no sharding); `shard_size < n ≤ max_places` → sharded; `n > max_places` → `ResultTooLargeError`. Enumerated once (assert `fetch_place_children`/`fetch_child_place_dcids` called once).
+- [ ] 6.3 Shard loop: a 3-shard export writes all 3 (assert `write_response_page` 3×, one `CSVStreamer`, `rows_written` summed, `pages_fetched==3`).
+- [ ] 6.4 Adaptive halving: `fetch_shard` raises a `DCStatusError(status_code=502)` for a big shard but succeeds for halves → splits, writes each leaf; a floor-size shard that still fails → clear error.
+- [ ] 6.5 Facet: probe runs on the spread SAMPLE only; same `filter_facet_ids=[primary]` to every shard. Coverage guard: a shard where the primary returns < threshold of `len(shard)` → `places_missing` incremented + surfaced in the result (denominator = requested shard, C2).
+- [ ] 6.6 Single-page file path still writes after the dead-code removal (M1).
+- [ ] 6.7 Config: `DC_SHARD_SIZE`/`DC_SHARD_MIN`/coverage defaults; `DC_MAX_PLACES` default **150000** and settable to it (C1); the `shard_min ≤ shard_size ≤ max_places` validator. **Update `test_max_places_default_is_5000` → 150000 (M2).**
+- [ ] 6.8 Existing A-i + C guardrail tests still pass (they pass `max_places` explicitly).
 
 ## 7. Docs + verification
 
-- [ ] 7.1 `docs/reference.md`: large child-place exports now SHARD (no longer refused); `DC_SHARD_SIZE` / raised `DC_MAX_PLACES`; wall-clock expectation; the regional-variable coverage caveat + `source_override`.
+- [ ] 7.1 `docs/reference.md`: large child-place exports now SHARD (no longer refused); `DC_SHARD_SIZE` / raised `DC_MAX_PLACES`; wall-clock expectation; `places_missing` + the regional-variable coverage caveat + `source_override`.
 - [ ] 7.2 `uv run --extra dev ruff format --check && ruff check && mypy src/datacommons_mcp && pytest -m "not e2e" --cov=datacommons_mcp --cov-fail-under=80` → all pass.
-- [ ] 7.3 (If DC_API_KEY available) live manual sanity: export a beyond-single-request geography (e.g. all census tracts of a large state, or all US tracts) — completes, bounded memory, correct row count, one CSV. Commit per group; Gate 2 before docs/archive.
+- [ ] 7.3 (If DC_API_KEY available) live manual sanity: export a beyond-single-request geography (all tracts of a large state, or all US tracts) — completes, bounded memory (~one shard), correct row count, one CSV. Commit per group; Gate 2 before docs/archive.

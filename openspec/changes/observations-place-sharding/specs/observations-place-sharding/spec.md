@@ -15,6 +15,14 @@ When a `child_place_type` query spans more places than a single API request can 
 - **WHEN** the child-place count exceeds `DC_MAX_PLACES`
 - **THEN** the query is refused with `ResultTooLargeError` (an absolute wall-clock safety ceiling) — `DC_MAX_PLACES` is now a shard trigger up to this ceiling, not a blanket refusal
 
+#### Scenario: The ceiling can actually admit all-US-tracts
+- **WHEN** `DC_MAX_PLACES` default and field bound are set
+- **THEN** the default is 150000 and the field `le` bound is raised to accommodate it (the prior `le=100000` made a 150000 ceiling unsettable and left all-US-tracts ≈ 97,659 at the edge)
+
+#### Scenario: Shard config is coherent
+- **WHEN** `DC_SHARD_MIN`, `DC_SHARD_SIZE`, `DC_MAX_PLACES` are loaded
+- **THEN** a validator enforces `shard_min ≤ shard_size ≤ max_places`
+
 ### Requirement: Sharded export uses bounded memory
 The sharded path SHALL hold at most one shard's data at a time.
 
@@ -29,20 +37,20 @@ The sharded path SHALL hold at most one shard's data at a time.
 ### Requirement: One primary facet is chosen and reused across shards
 The sharded path SHALL pick a single primary facet from a sample and apply it to every shard, guarding coverage.
 
-#### Scenario: Facet picked from a sample probe, reused
+#### Scenario: Facet picked from a spread sample, reused
 - **WHEN** the export begins
-- **THEN** a `date="latest"` probe over the first shard ranks facets (shared `rank_primary_facet`) to pick the primary, which is passed as `filter_facet_ids` for every shard's fetch
+- **THEN** a `date="latest"` probe over a sample SPREAD across the geography (not the first contiguous, geoId-clustered shard) ranks facets (shared `rank_primary_facet`) to pick the primary, which is passed as `filter_facet_ids` for every shard's fetch
 
-#### Scenario: Coverage guard warns on regionally-sparse facets
-- **WHEN** the chosen facet covers fewer than a threshold fraction of a later shard's places
-- **THEN** a warning is logged (the single global facet may miss regionally-sourced data); an explicit `source_override` bypasses auto-selection
+#### Scenario: Coverage guard measures against the requested shard and surfaces the shortfall
+- **WHEN** the chosen facet returns data for fewer than `DC_SHARD_FACET_MIN_COVERAGE` of the places in a REQUESTED shard (denominator = `len(shard)`, NOT the returned places — filtering to the primary makes returned-coverage ~100% always)
+- **THEN** the shortfall is accumulated and **surfaced in the `ObservationsFileResult`** (`places_missing` + a note in `summary`) so the calling agent can see it — not only logged; an explicit `source_override` bypasses auto-selection
 
 ### Requirement: Sharding adapts to the API's size walls
 Because the API rejects oversized requests two ways (HTTP 500 series cap; HTTP 502 timeout) and the limit is variable-dependent, the shard loop SHALL adapt.
 
-#### Scenario: A failed shard is halved and retried
-- **WHEN** a shard fetch fails with HTTP 500 or HTTP 502
-- **THEN** the shard is split in half and each half retried (recursively, down to a floor size); if a shard at the floor still fails, the export errors with a clear message
+#### Scenario: A failed shard is halved and each leaf written
+- **WHEN** a shard fetch fails with a `DCStatusError` whose `status_code` is 500 or 502
+- **THEN** the shard is split in half and each half retried (recursively, down to `DC_SHARD_MIN`), and each successful LEAF sub-shard is written as its own page (nothing is concatenated); if a shard at the floor still fails, the export errors with a clear message naming the variable and size (a generic 500 is not distinguishable by reason, so the floor is the safety)
 
 ### Requirement: Enumeration yields the full child DCID list
 Sharding SHALL slice the complete list of child place DCIDs.
@@ -54,9 +62,9 @@ Sharding SHALL slice the complete list of child place DCIDs.
 ### Requirement: Dead pagination code is removed
 The non-functional v2 pagination scaffolding SHALL be removed as part of this change.
 
-#### Scenario: next_token scaffolding gone
+#### Scenario: next_token scaffolding gone, single-page path intact
 - **WHEN** the change lands
-- **THEN** the dead `_stream_to_file` `next_token` loop and `_write_api_response_page` (the v2 API never returns a next_token) are removed, and the suite stays green
+- **THEN** only the unreachable `while next_token` loop and `_write_api_response_page` are removed (the v2 API never returns a next_token); `_stream_to_file` itself — the LIVE single-page file path — is kept, and a test proves a ≤ `DC_SHARD_SIZE` file export still writes correctly
 
 ### Requirement: Suite and docs stay green
 The change SHALL keep the suite green and document the new behavior.
