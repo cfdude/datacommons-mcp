@@ -96,10 +96,10 @@ async def get_observations(
             * Dates must be in `YYYY`, `YYYY-MM`, or `YYYY-MM-DD` format.
         3.  **Default Behavior**: If you do not provide **any** date parameters (`date`, `date_range_start`, or `date_range_end`), the tool will automatically fetch only the `'latest'` observation.
 
-    * **Output Mode**: Controls how large datasets are returned.
-        * `auto` (default): Automatically detects if response is paginated. Single-page responses are returned directly, multi-page responses are streamed to a CSV file.
-        * `screen`: Always return data directly in the response (may be truncated for large datasets).
-        * `file`: Always stream data to a file, even for small datasets.
+    * **Output Mode**: Controls how results are returned.
+        * `auto` (default): small results are returned inline; large results are exported to a CSV/JSON file (with a data preview). Very large geographies (e.g. all US counties or census tracts) are handled in bounded memory via place-sharding, with the primary source auto-selected.
+        * `screen`: Always return data inline in the response (intended for small results).
+        * `file`: Always export to a file, even for small results.
 
     Args:
       variable_dcid (str, required): The unique identifier (DCID) of the statistical variable.
@@ -109,7 +109,7 @@ async def get_observations(
       date (str, optional): An optional date filter. Accepts 'all', 'latest', 'range', or single date values of the format 'YYYY', 'YYYY-MM', or 'YYYY-MM-DD'. Defaults to 'latest' if no date parameters are provided.
       date_range_start (str, optional): The start date for a range (inclusive). **Used only if `date` is set to'range'.**
       date_range_end (str, optional): The end date for a range (inclusive). **Used only if `date` is set to'range'.**
-      output (str, optional): Output mode - 'auto' (default), 'screen', or 'file'. Auto mode detects large datasets and streams to file.
+      output (str, optional): Output mode - 'auto' (default), 'screen', or 'file'. Auto exports large results to a file.
       output_format (str, optional): Output format for file mode - 'csv' (default) or 'json'.
       multi_file (bool, optional): If True, creates companion files with place and source metadata (default: False).
 
@@ -121,15 +121,19 @@ async def get_observations(
         - `data`: The observation data (variable, place_observations, source_metadata,
           alternative_sources), returned inline.
 
-        File mode (`ObservationsFileResult`, large or paginated responses — the rows are
-        written to a file and NOT inlined; the server runs locally so the path is usable):
+        File mode (`ObservationsFileResult`, large responses — the rows are written to a
+        file and NOT inlined; the server runs locally so the path is usable):
         - `output_mode`: "file"
         - `file_path`: Path to the created file.
         - `format`: File format ("csv" by default, or "json").
         - `rows_written`: Number of data rows written.
-        - `pages_fetched`: Number of API pages fetched.
+        - `pages_fetched`: Number of fetches written (shard count for a sharded export; 1 otherwise).
         - `file_size_bytes`: Size of the output file in bytes.
         - `unique_places_count`: Number of unique places in the data.
+        - `preview`: The first rows of the export, so you can see the content without opening the file.
+        - `summary`: One-line human-readable summary (rows written + path).
+        - `variable_name`, `columns`: The variable's display name and the CSV column headers.
+        - `places_missing`: Sharded exports only — requested places the chosen source did not cover (0 normally).
         - `multi_file`: True when multi-file export was requested (otherwise absent).
         - `companion_files`: Optional map of companion files (absent unless populated).
 
