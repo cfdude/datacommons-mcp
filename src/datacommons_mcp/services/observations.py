@@ -15,11 +15,14 @@
 import asyncio
 import logging
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import AsyncIterator, Iterable
+from dataclasses import asdict
 from datetime import datetime
-from typing import Any, cast
+from itertools import islice
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from datacommons_client.models.observation import ByVariable
+from datacommons_client.utils.error_handling import DCStatusError
 
 from datacommons_mcp.clients import DCClient
 from datacommons_mcp.data_models.observations import (
@@ -30,7 +33,10 @@ from datacommons_mcp.data_models.observations import (
     ObservationApiResponse,
     ObservationDate,
     ObservationDateType,
+    ObservationPreviewRow,
     ObservationRequest,
+    ObservationsFileResult,
+    ObservationsResult,
     ObservationToolResponse,
     PlaceObservation,
     SourceProcessingResult,
@@ -42,6 +48,16 @@ from datacommons_mcp.exceptions import (
     ResultTooLargeError,
 )
 from datacommons_mcp.utils import filter_by_date
+from datacommons_mcp.utils.csv_streamer import flatten_response_to_rows
+
+if TYPE_CHECKING:
+    from datacommons_mcp.utils.output_handler import OutputHandler
+
+# Rows included as the bounded preview of a sharded export (mirrors output_handler).
+_SHARD_PREVIEW_ROWS = 10
+# API "request too large" responses to retry by halving the shard (HTTP 500 series cap,
+# 502 gateway timeout). Both surface as DCStatusError (status >= 500) with .status_code.
+_SHARD_SIZE_ERROR_STATUS = (500, 502)
 
 logger = logging.getLogger(__name__)
 
@@ -642,4 +658,200 @@ async def get_observations(
         request=observation_request,
         api_response=api_response,
         metadata_map=metadata_map,
+    )
+
+
+async def get_observations_export(
+    client: DCClient,
+    output_handler: "OutputHandler",
+    *,
+    variable_dcid: str,
+    place_dcid: str | None = None,
+    place_name: str | None = None,
+    child_place_type: str | None = None,
+    source_override: str | None = None,
+    date: str = ObservationDateType.LATEST.value,
+    date_range_start: str | None = None,
+    date_range_end: str | None = None,
+    output_mode: str = "auto",
+    output_format: Literal["csv", "json"] = "csv",
+    multi_file: bool = False,
+    max_places: int,
+    shard_size: int,
+    shard_min: int,
+    facet_min_coverage: float,
+) -> ObservationsResult:
+    """Single orchestrator for get_observations: enumerate child places ONCE, then dispatch.
+
+    - count > max_places  -> refuse (ResultTooLargeError; absolute wall-clock ceiling)
+    - count > shard_size  -> sharded export (item A-ii; bounded-memory, beyond a single
+      API request's size wall)
+    - otherwise           -> the single facet-reduced fetch (item A-i), unchanged.
+
+    Sharding only applies to a child-place query with an explicit parent dcid. Other
+    queries (single place, or a place_name child query) go straight to the single path,
+    which keeps its own size guardrail.
+    """
+    if child_place_type and place_dcid:
+        dcids = await client.fetch_child_place_dcids(place_dcid, child_place_type)
+        n = len(dcids)
+        if n > max_places:
+            raise ResultTooLargeError(
+                f"This query spans {n} {child_place_type} places under {place_dcid}, above the "
+                f"DC_MAX_PLACES={max_places} ceiling. Narrow it — a specific date or range, a "
+                f"coarser place type, or fewer places."
+            )
+        if n > shard_size:
+            request = await _validate_and_build_request(
+                client,
+                variable_dcid=variable_dcid,
+                place_dcid=place_dcid,
+                place_name=place_name,
+                child_place_type=child_place_type,
+                source_override=source_override,
+                date=date,
+                date_range_start=date_range_start,
+                date_range_end=date_range_end,
+            )
+            return await _sharded_export(
+                client,
+                output_handler,
+                request,
+                dcids,
+                shard_size=shard_size,
+                shard_min=shard_min,
+                facet_min_coverage=facet_min_coverage,
+                output_format=output_format,
+            )
+        # n <= shard_size: single A-i fetch. Gating was done here, so skip the inner
+        # guardrail (max_places=None) to avoid re-counting the children.
+        response, request, next_token = await get_observations_paginated(
+            client,
+            variable_dcid=variable_dcid,
+            place_dcid=place_dcid,
+            place_name=place_name,
+            child_place_type=child_place_type,
+            source_override=source_override,
+            date=date,
+            date_range_start=date_range_start,
+            date_range_end=date_range_end,
+            max_places=None,
+        )
+    else:
+        response, request, next_token = await get_observations_paginated(
+            client,
+            variable_dcid=variable_dcid,
+            place_dcid=place_dcid,
+            place_name=place_name,
+            child_place_type=child_place_type,
+            source_override=source_override,
+            date=date,
+            date_range_start=date_range_start,
+            date_range_end=date_range_end,
+            max_places=max_places,
+        )
+
+    return await output_handler.handle_observations(
+        request=request,
+        processed_response=response,
+        next_token=next_token,
+        output_mode=output_mode,
+        output_format=output_format,
+        multi_file=multi_file,
+    )
+
+
+async def _sharded_export(
+    client: DCClient,
+    output_handler: "OutputHandler",
+    request: ObservationRequest,
+    dcids: list[str],
+    *,
+    shard_size: int,
+    shard_min: int,
+    facet_min_coverage: float,
+    output_format: Literal["csv", "json"],
+) -> ObservationsFileResult:
+    """Export a large child-place geography by sharding the place list (item A-ii).
+
+    Picks ONE primary facet (explicit source, else a spread-sample latest probe), then
+    fetches each shard (explicit entity_dcids + that facet), writing each to one CSV and
+    releasing it — O(shard) memory. Shards that hit the API's size walls (HTTP 500/502)
+    are halved and retried, each leaf written as its own page. A file export needs no
+    empty-series/alternative_sources reconstruction (those places contribute zero rows).
+    """
+    variable_dcid = request.variable_dcid
+
+    # 1. Primary facet: explicit override, else rank from a spread sample at date=latest
+    # (a contiguous first shard is geoId-clustered and would bias a regionally-sourced var).
+    if request.source_ids:
+        primary: str | None = request.source_ids[0]
+    else:
+        stride = max(1, len(dcids) // shard_size)
+        sample = dcids[::stride][:shard_size]
+        probe = await client.fetch_observations_by_entity_dcid(
+            variable_dcid, sample, ObservationDateType.LATEST, None
+        )
+        primary, _ = rank_primary_facet(probe.byVariable.get(variable_dcid, ByVariable({})), None)
+
+    shard_request = request.model_copy(update={"source_ids": [primary] if primary else None})
+    shards = [dcids[i : i + shard_size] for i in range(0, len(dcids), shard_size)]
+    # Captured during streaming, read after it completes.
+    state: dict[str, Any] = {"places_missing": 0, "preview": None, "variable_name": None}
+
+    async def _export_shard(shard: list[str]) -> AsyncIterator[ObservationToolResponse]:
+        try:
+            api_response = await client.fetch_observations_by_entity_dcid(
+                variable_dcid,
+                shard,
+                request.date_type or ObservationDateType.LATEST,
+                [primary] if primary else None,
+            )
+        except DCStatusError as exc:
+            if getattr(exc, "status_code", None) in _SHARD_SIZE_ERROR_STATUS and (
+                len(shard) > shard_min
+            ):
+                mid = len(shard) // 2
+                async for page in _export_shard(shard[:mid]):
+                    yield page
+                async for page in _export_shard(shard[mid:]):
+                    yield page
+                return
+            raise ResultTooLargeError(
+                f"A shard of {len(shard)} places for {variable_dcid} still exceeds the API size "
+                f"limit at the floor (DC_SHARD_MIN={shard_min}). Narrow the query — fewer places "
+                f"or a specific date."
+            ) from exc
+
+        var_data = api_response.byVariable.get(variable_dcid, ByVariable({}))
+        # Coverage against the REQUESTED shard (filtering to the primary makes the returned
+        # set ~100% by construction, so the denominator must be len(shard)).
+        covered = len(var_data.byEntity)
+        if primary is not None and covered < facet_min_coverage * len(shard):
+            state["places_missing"] += len(shard) - covered
+
+        metadata = await _fetch_all_metadata(
+            client, variable_dcid, api_response, request.place_dcid
+        )
+        resp = await _build_final_response(shard_request, api_response, metadata)
+        if state["preview"] is None:
+            state["preview"] = [
+                ObservationPreviewRow(**asdict(row))
+                for row in islice(flatten_response_to_rows(resp), _SHARD_PREVIEW_ROWS)
+            ]
+            state["variable_name"] = resp.variable.name
+        yield resp
+
+    async def _pages() -> AsyncIterator[ObservationToolResponse]:
+        for shard in shards:
+            async for page in _export_shard(shard):
+                yield page
+
+    pagination_result = await output_handler.stream_pages_to_file(shard_request, _pages())
+    return output_handler.finalize_file_result(
+        pagination_result,
+        preview_rows=state["preview"] or [],
+        variable_name=state["variable_name"],
+        output_format=output_format,
+        places_missing=state["places_missing"],
     )

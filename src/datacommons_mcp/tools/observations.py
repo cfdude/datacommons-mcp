@@ -24,7 +24,7 @@ from ..data_models.observations import (
     ObservationsFileResult,
     ObservationsScreenResult,
 )
-from ..services import get_observations_paginated as get_observations_service
+from ..services import get_observations_export
 from ..utils.output_handler import OutputHandler, OutputHandlerConfig
 from .base import mcp
 from .common import get_client, get_config, tool_error_boundary
@@ -141,20 +141,6 @@ async def get_observations(
         client = get_client(ctx)
         config = get_config(ctx)
 
-        # Get processed response, request, and pagination token
-        response, request, next_token = await get_observations_service(
-            client=client,
-            variable_dcid=variable_dcid,
-            place_dcid=place_dcid,
-            place_name=None,
-            child_place_type=child_place_type,
-            source_override=source_override,
-            date=date,
-            date_range_start=date_range_start,
-            date_range_end=date_range_end,
-            max_places=config.max_places,
-        )
-
         # Create output handler with settings from config
         output_config = OutputHandlerConfig(
             output_format=config.output_format,
@@ -166,22 +152,26 @@ async def get_observations(
         )
         output_handler = OutputHandler(client, output_config)
 
-        # Create progress callback using context
-        async def progress_callback(page: int, rows: int, total_bytes: int) -> None:
-            await ctx.report_progress(page, config.max_pages)
-
-        # Handle output based on mode
-        result = await output_handler.handle_observations(
-            request=request,
-            processed_response=response,
-            next_token=next_token,
+        # One orchestrator: enumerate child places once, then refuse | shard | single (A-i).
+        return await get_observations_export(
+            client,
+            output_handler,
+            variable_dcid=variable_dcid,
+            place_dcid=place_dcid,
+            place_name=None,
+            child_place_type=child_place_type,
+            source_override=source_override,
+            date=date,
+            date_range_start=date_range_start,
+            date_range_end=date_range_end,
             output_mode=output,
             output_format=output_format,
             multi_file=multi_file,
-            progress_callback=None,  # TODO: Wire up async progress callback
+            max_places=config.max_places,
+            shard_size=config.shard_size,
+            shard_min=config.shard_min,
+            facet_min_coverage=config.shard_facet_min_coverage,
         )
-
-        return result
 
 
 __all__ = ["get_observations"]

@@ -302,33 +302,42 @@ class OutputHandler:
             places_missing=places_missing,
         )
 
-    async def handle_sharded_file_output(
+    async def stream_pages_to_file(
         self,
         request: ObservationRequest,
         pages: AsyncIterator[ObservationToolResponse],
         *,
-        preview_rows: list[ObservationPreviewRow],
-        variable_name: str | None,
-        output_format: Literal["csv", "json"],
-        places_missing: int,
         progress_callback: Any | None = None,
-    ) -> ObservationsFileResult:
-        """Write a sharded export (N shard pages) to one CSV and build the file result.
+    ) -> PaginationResult:
+        """Stream an async sequence of response pages to one CSV (used by place-sharding).
 
-        Reuses the same streaming + result construction as the single-fetch path.
-        multi-file companion export is NOT supported for sharded exports.
+        Thin pass-through to the pagination handler so the sharded driver doesn't reach
+        into internals; the driver then calls ``finalize_file_result`` with the captured
+        preview/coverage. The single-fetch path and this share the same writer + result
+        construction (no drift).
         """
 
         def pagination_progress(page: int, rows: int, total_bytes: int) -> None:
             if progress_callback:
                 progress_callback(page, rows, total_bytes)
 
-        result = await self.pagination_handler.stream_pages_to_file(
+        return await self.pagination_handler.stream_pages_to_file(
             request,
             pages,
             progress_callback=pagination_progress,
             server_version=__version__,
         )
+
+    def finalize_file_result(
+        self,
+        result: PaginationResult,
+        *,
+        preview_rows: list[ObservationPreviewRow],
+        variable_name: str | None,
+        output_format: Literal["csv", "json"],
+        places_missing: int = 0,
+    ) -> ObservationsFileResult:
+        """Public entry for the sharded driver to build the result (multi_file off)."""
         return self._finalize_file_result(
             result,
             preview_rows=preview_rows,

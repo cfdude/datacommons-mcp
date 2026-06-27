@@ -103,13 +103,12 @@ async def test_invalid_input_surfaces_actionable_message_to_client(_dc_env):
 async def test_unexpected_error_is_masked_to_client(monkeypatch, _dc_env):
     from fastmcp import Client
 
-    import datacommons_mcp.tools.observations as obs_mod
     from datacommons_mcp.fastmcp_server import mcp  # registers the tools on import
 
     async def _boom(*args, **kwargs):
         raise RuntimeError("internal detail xyz")
 
-    monkeypatch.setattr(obs_mod, "get_observations_service", _boom)
+    monkeypatch.setattr("datacommons_mcp.services.observations.get_observations_paginated", _boom)
 
     async with Client(mcp) as client:
         with pytest.raises(ToolError) as ei:
