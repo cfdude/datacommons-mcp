@@ -19,7 +19,7 @@ dependencies = [
     "datacommons-client>=2.1.6,<3.0.0",
     "pydantic>=2.0.0,<3.0.0",
     "pydantic-settings>=2.0.0,<3.0.0",
-    "cryptography>=46.0.7,<47.0.0",
+    "cryptography>=46.0.7,<50.0.0",
     "python-dotenv>=1.2.2,<2.0.0",
     "python-dateutil>=2.9.0.post0,<3.0.0",
 ]
@@ -33,7 +33,7 @@ dev = [
     "pytest>=9.0.3,<10.0.0",
     "pytest-asyncio>=0.21.0,<2.0.0",
     "pytest-cov>=4.0.0,<8.0.0",
-    "mypy>=1.8.0,<2.0.0",
+    "mypy>=1.8.0,<3.0.0",
 ]
 
 [project.scripts]
