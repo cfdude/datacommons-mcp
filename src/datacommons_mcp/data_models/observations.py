@@ -22,9 +22,7 @@ from typing import Any, Literal
 from datacommons_client.endpoints.response import ObservationResponse
 from datacommons_client.models.observation import Observation, OrderedFacet
 
-# dateutil ships partial stubs that aren't covered by ignore_missing_imports;
-# installing types-python-dateutil isn't worth it for a single import.
-from dateutil.parser import parse  # type: ignore[import-untyped]
+from dateutil.parser import parse
 from pydantic import BaseModel, Field, field_validator
 
 from datacommons_mcp.exceptions import (
