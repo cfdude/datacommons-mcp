@@ -10,13 +10,13 @@ on:
 
 jobs:
   trivy:
-    uses: cfdude/.github/.github/workflows/security-trivy.yml@5646bebe649298cdf4c1b1a4aa1ad3e9e1c8b9b1 # main
+    uses: cfdude/.github/.github/workflows/security-trivy.yml@d5d060809c6cd951e79a92e7069a8f719c7f6074 # main
     permissions:
       contents: read
       security-events: write
 
   semgrep:
-    uses: cfdude/.github/.github/workflows/security-semgrep.yml@5646bebe649298cdf4c1b1a4aa1ad3e9e1c8b9b1 # main
+    uses: cfdude/.github/.github/workflows/security-semgrep.yml@d5d060809c6cd951e79a92e7069a8f719c7f6074 # main
     permissions:
       contents: read
       security-events: write
