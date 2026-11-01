@@ -133,6 +133,11 @@ addopts = [
     "--tb=short",
 ]
 asyncio_mode = "auto"
+# Regression guard: fail on the fastmcp 4.x / MCP SDK v2 deprecations we fixed.
+filterwarnings = [
+    "error:Accessing `Tool.outputSchema` is deprecated",
+    "error:The logging capability is deprecated",
+]
 markers = [
     "e2e: mark test as end-to-end (requires DC_API_KEY)",
     "slow: mark test as slow (large datasets)",

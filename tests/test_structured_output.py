@@ -40,12 +40,12 @@ async def test_both_tools_advertise_field_level_output_schema(_dc_env):
         tools = {t.name: t for t in await client.list_tools()}
 
     # Neither tool should advertise the old {"additionalProperties": true} open object.
-    assert not _is_structureless(tools["search_indicators"].outputSchema)
-    assert not _is_structureless(tools["get_observations"].outputSchema)
+    assert not _is_structureless(tools["search_indicators"].output_schema)
+    assert not _is_structureless(tools["get_observations"].output_schema)
 
     # get_observations should expose BOTH branches (screen/file) in its schema,
     # via the output_mode literal tags (asserted specifically, not as loose substrings).
-    obs_schema_text = str(tools["get_observations"].outputSchema)
+    obs_schema_text = str(tools["get_observations"].output_schema)
     assert "'screen'" in obs_schema_text  # output_mode const for the screen branch
     assert "'file'" in obs_schema_text  # output_mode const for the file branch
 

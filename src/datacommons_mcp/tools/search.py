@@ -293,7 +293,7 @@ async def search_indicators(
 
     **Final Reminder:** Always treat results as *candidates*. You must filter and rank them based on the user's full context.
     """
-    await ctx.debug(f"search_indicators called with query='{query}'")
+    logger.debug("search_indicators called with query=%r", query)
 
     with tool_error_boundary():
         # Get client from lifespan context
