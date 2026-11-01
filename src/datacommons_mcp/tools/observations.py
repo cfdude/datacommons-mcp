@@ -13,6 +13,7 @@
 # limitations under the License.
 """Get observations tool for Data Commons MCP server."""
 
+import logging
 from pathlib import Path
 from typing import Literal
 
@@ -28,6 +29,8 @@ from ..services import get_observations_export
 from ..utils.output_handler import OutputHandler, OutputHandlerConfig
 from .base import mcp
 from .common import get_client, get_config, tool_error_boundary
+
+logger = logging.getLogger(__name__)
 
 
 @mcp.tool(
@@ -138,7 +141,7 @@ async def get_observations(
         - `companion_files`: Optional map of companion files (absent unless populated).
 
     """
-    await ctx.debug(f"get_observations called: variable={variable_dcid}, place={place_dcid}")
+    logger.debug("get_observations called: variable=%s, place=%s", variable_dcid, place_dcid)
 
     with tool_error_boundary():
         # Get client and config from lifespan context
