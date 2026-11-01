@@ -193,7 +193,8 @@ gemini.md
 /.gemini/
 
 # Claude Code
-.claude/
+.claude/settings.local.json
+.claude/**/precompact_context_*.txt
 
 # JetBrains
 /.idea
