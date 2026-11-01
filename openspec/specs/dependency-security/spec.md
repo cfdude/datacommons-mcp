@@ -8,7 +8,7 @@ The project SHALL NOT depend on a pre-release (alpha/beta/rc) version of any run
 
 #### Scenario: FastMCP resolves to a stable release
 - **WHEN** dependencies are resolved from `pyproject.toml` and `uv.lock`
-- **THEN** `fastmcp` resolves to a stable `3.x` release (constraint `>=3.4,<4`), not `3.0.0b1` or any pre-release
+- **THEN** `fastmcp` resolves to a stable `4.x` release (constraint `>=4.1,<5`, locked at 4.1.4), not a beta or any pre-release
 
 #### Scenario: No beta/rc anywhere in the lockfile for runtime deps
 - **WHEN** `uv.lock` is inspected for runtime (non-dev) packages
