@@ -21,7 +21,6 @@ from typing import Any, Literal
 
 from datacommons_client.endpoints.response import ObservationResponse
 from datacommons_client.models.observation import Observation, OrderedFacet
-
 from dateutil.parser import parse
 from pydantic import BaseModel, Field, field_validator
 
