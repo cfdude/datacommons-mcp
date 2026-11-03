@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/cfdude-datacommons-mcp-badge.png)](https://mseep.ai/app/cfdude-datacommons-mcp)
+
 # Data Commons MCP Server
 
 A [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server that exposes the
